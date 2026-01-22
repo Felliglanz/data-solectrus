@@ -1,0 +1,35 @@
+{
+  "common": {
+    "name": "data-solectrus",
+    "version": "0.1.0",
+    "title": "Data-Solectrus",
+    "titleLang": {
+      "en": "Data-Solectrus",
+      "de": "Data-Solectrus"
+    },
+    "desc": {
+      "en": "Compute and mirror ioBroker states into adapter-owned states using formulas.",
+      "de": "Berechnet und spiegelt ioBroker-Datenpunkte als adapter-eigene States mittels Formeln."
+    },
+    "platform": "Javascript/Node.js",
+    "mode": "daemon",
+    "compact": true,
+    "enabled": true,
+    "adminUI": {
+      "config": "json"
+    },
+    "type": "energy",
+    "connectionType": "none",
+    "dataSource": "poll",
+    "authors": [
+      "Sven (private)"
+    ],
+    "license": "UNLICENSED"
+  },
+  "native": {
+    "pollIntervalSeconds": 5,
+    "items": []
+  },
+  "objects": [],
+  "instanceObjects": []
+}
