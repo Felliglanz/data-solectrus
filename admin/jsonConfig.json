@@ -6,12 +6,86 @@
       "type": "panel",
       "label": "Values",
       "items": {
+        "hint": {
+          "type": "staticText",
+          "text": "If the Master/Detail editor is empty, use the fallback table below. You can still switch back later.",
+          "sm": 12
+        },
         "items": {
           "type": "custom",
           "url": "custom/customComponents.js",
           "name": "DataSolectrusItemsEditor",
           "label": "Configured values",
           "sm": 12
+        },
+        "itemsFallback": {
+          "type": "table",
+          "label": "Fallback table editor",
+          "sm": 12,
+          "attr": "items",
+          "noDelete": false,
+          "items": [
+            {
+              "attr": "enabled",
+              "type": "checkbox",
+              "title": "Enabled",
+              "width": 80,
+              "default": false
+            },
+            {
+              "attr": "name",
+              "type": "text",
+              "title": "Name",
+              "width": 200,
+              "default": ""
+            },
+            {
+              "attr": "targetId",
+              "type": "text",
+              "title": "Target ID (relative)",
+              "width": 220,
+              "default": ""
+            },
+            {
+              "attr": "mode",
+              "type": "select",
+              "title": "Mode",
+              "width": 140,
+              "options": [
+                { "label": "formula", "value": "formula" },
+                { "label": "source", "value": "source" }
+              ],
+              "default": "formula"
+            },
+            {
+              "attr": "sourceState",
+              "type": "text",
+              "title": "Source state (for mode=source)",
+              "width": 280,
+              "default": ""
+            },
+            {
+              "attr": "formula",
+              "type": "text",
+              "title": "Formula",
+              "width": 300,
+              "default": ""
+            },
+            {
+              "attr": "unit",
+              "type": "text",
+              "title": "Unit",
+              "width": 100,
+              "default": ""
+            },
+            {
+              "attr": "role",
+              "type": "text",
+              "title": "Role",
+              "width": 140,
+              "default": "value"
+            }
+          ]
         }
       }
     },
