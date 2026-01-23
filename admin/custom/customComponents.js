@@ -9,7 +9,7 @@
     'use strict';
 
     const REMOTE_NAME = 'DataSolectrusItems';
-    const UI_VERSION = '2026-01-23 20260123-3';
+    const UI_VERSION = '2026-01-23 20260123-4';
     const DEBUG = false;
     let shareScope;
 
@@ -506,14 +506,15 @@
 
             // Native <select>/<option> popups can ignore styles in Chrome dark mode (OS-rendered).
             // Use a custom dropdown to ensure readable options.
-            const dropdownBg = isDark ? '#1f1f1f' : '#ffffff';
-            const dropdownText = isDark ? '#ffffff' : '#111111';
+            // Match the visual style of normal inputs in this editor
+            const dropdownBg = inputStyle.background;
+            const dropdownText = colors.text;
 
             const dropdownButtonStyle = Object.assign({}, inputStyle, {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                backgroundColor: dropdownBg,
+                background: dropdownBg,
                 color: dropdownText,
                 cursor: 'pointer',
                 userSelect: 'none',
