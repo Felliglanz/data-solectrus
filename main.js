@@ -159,8 +159,16 @@ class DataSolectrus extends utils.Adapter {
 
 	calcTitle(item) {
 		const enabled = !!(item && item.enabled);
-		const name = (item && (item.name || item.targetId)) ? String(item.name || item.targetId) : 'Item';
+		const displayId = this.getItemDisplayId(item);
+		const name = (item && item.name) ? String(item.name) : (displayId || 'Item');
 		return `${enabled ? '🟢 ' : '⚪ '}${name}`;
+	}
+
+	getItemDisplayId(item) {
+		const group = item && item.group ? String(item.group).trim() : '';
+		const targetId = item && item.targetId ? String(item.targetId).trim() : '';
+		if (group && targetId) return `${group}.${targetId}`;
+		return targetId || group;
 	}
 
 	ensureTitle(item) {
@@ -171,12 +179,19 @@ class DataSolectrus extends utils.Adapter {
 		try {
 			const objId = `system.adapter.${this.namespace}`;
 			const obj = await this.getForeignObjectAsync(objId);
-			if (!obj || !obj.native || !Array.isArray(obj.native.items)) {
+			if (!obj || !obj.native) {
+				return;
+			}
+
+			const items = Array.isArray(obj.native.items) ? obj.native.items : [];
+			const itemsEditor = Array.isArray(obj.native.itemsEditor) ? obj.native.itemsEditor : [];
+			const active = items.length ? items : itemsEditor;
+			if (!Array.isArray(active)) {
 				return;
 			}
 
 			let changed = false;
-			obj.native.items.forEach(it => {
+			active.forEach(it => {
 				if (!it || typeof it !== 'object') return;
 				const expectedTitle = this.calcTitle(it);
 				if (it._title !== expectedTitle) {
@@ -184,6 +199,13 @@ class DataSolectrus extends utils.Adapter {
 					changed = true;
 				}
 			});
+
+			// If Admin stored items under `itemsEditor`, migrate them back into `items`
+			// so the runtime + fallback table see the same config.
+			if (items.length === 0 && itemsEditor.length > 0) {
+				obj.native.items = itemsEditor;
+				changed = true;
+			}
 
 			if (changed) {
 				await this.setForeignObjectAsync(objId, obj);
@@ -278,9 +300,11 @@ class DataSolectrus extends utils.Adapter {
 		this.isUnloading = false;
 		await this.createInfoStates();
 
-		if (!Array.isArray(this.config.items)) {
-			this.config.items = [];
-		}
+		// Config compatibility: some Admin/jsonConfig schema versions may store custom-control data
+		// under the control name (e.g. itemsEditor). Always prefer native.items but fall back.
+		const items = Array.isArray(this.config.items) ? this.config.items : [];
+		const itemsEditor = Array.isArray(this.config.itemsEditor) ? this.config.itemsEditor : [];
+		this.config.items = items.length ? items : itemsEditor;
 
 		await this.ensureItemTitlesInInstanceConfig();
 		await this.prepareItems();
@@ -314,17 +338,59 @@ class DataSolectrus extends utils.Adapter {
 		return ids;
 	}
 
+	isValidRelativeId(id) {
+		if (!id) return false;
+		const raw = String(id).trim();
+		if (!raw) return false;
+		// No absolute IDs; must be relative within this adapter
+		if (raw.includes('..') || raw.startsWith('.') || raw.endsWith('.')) return false;
+		// Keep it conservative: segments of [a-zA-Z0-9_-] separated by dots
+		return /^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$/.test(raw);
+	}
+
 	getItemTargetId(item) {
 		const raw = item && item.targetId ? String(item.targetId).trim() : '';
 		if (!raw) return '';
-		// No absolute IDs; target must be relative within this adapter
-		if (raw.includes('..') || raw.startsWith('.')) return '';
-		return raw;
+		return this.isValidRelativeId(raw) ? raw : '';
+	}
+
+	getItemGroupId(item) {
+		const raw = item && item.group ? String(item.group).trim() : '';
+		if (!raw) return '';
+		return this.isValidRelativeId(raw) ? raw : '';
+	}
+
+	getItemOutputId(item) {
+		const group = this.getItemGroupId(item);
+		const targetId = this.getItemTargetId(item);
+		if (!targetId) return '';
+		return group ? `${group}.${targetId}` : targetId;
+	}
+
+	async ensureChannelPath(id) {
+		const raw = id ? String(id).trim() : '';
+		if (!raw) return;
+		const parts = raw.split('.').filter(Boolean);
+		if (parts.length <= 1) return;
+
+		let prefix = '';
+		for (let i = 0; i < parts.length - 1; i++) {
+			prefix = prefix ? `${prefix}.${parts[i]}` : parts[i];
+			await this.setObjectNotExistsAsync(prefix, {
+				type: 'channel',
+				common: {
+					name: parts[i],
+				},
+				native: {},
+			});
+		}
 	}
 
 	async ensureOutputState(item) {
-		const id = this.getItemTargetId(item);
+		const id = this.getItemOutputId(item);
 		if (!id) return;
+
+		await this.ensureChannelPath(id);
 
 		const typeMap = {
 			number: 'number',
@@ -459,9 +525,20 @@ class DataSolectrus extends utils.Adapter {
 	applyResultRules(item, value) {
 		let v = this.safeNum(value);
 
+		const toOptionalNumber = val => {
+			if (val === undefined || val === null) return NaN;
+			if (typeof val === 'string' && val.trim() === '') return NaN;
+			const n = Number(val);
+			return Number.isFinite(n) ? n : NaN;
+		};
+
+		if (item && item.noNegative && v < 0) {
+			v = 0;
+		}
+
 		if (item && item.clamp) {
-			const min = item.min !== undefined && item.min !== null ? Number(item.min) : NaN;
-			const max = item.max !== undefined && item.max !== null ? Number(item.max) : NaN;
+			const min = toOptionalNumber(item.min);
+			const max = toOptionalNumber(item.max);
 			if (Number.isFinite(min) && v < min) v = min;
 			if (Number.isFinite(max) && v > max) v = max;
 		}
@@ -480,7 +557,7 @@ class DataSolectrus extends utils.Adapter {
 		await this.setStateAsync('info.status', enabledItems.length ? 'ok' : 'no_items_enabled', true);
 
 		for (const item of enabledItems) {
-			const targetId = this.getItemTargetId(item);
+			const targetId = this.getItemOutputId(item);
 			if (!targetId) {
 				continue;
 			}

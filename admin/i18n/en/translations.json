@@ -1,6 +1,6 @@
 {
   "Values": "Values",
-  "Runtime": "Runtime",
+  "Runtime": "Global settings",
   "Poll interval (seconds)": "Poll interval (seconds)",
   "Configured values": "Configured values",
   "Add": "Add",
@@ -27,7 +27,9 @@
   "Mixed": "Mixed",
   "Role": "Role",
   "Unit": "Unit",
+  "Folder/Group": "Folder/Group",
   "Clamp result": "Clamp result",
+  "Clamp negative to 0": "Clamp negative to 0",
   "Min": "Min",
   "Max": "Max",
   "Formula expression": "Formula expression",

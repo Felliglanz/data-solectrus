@@ -77,7 +77,10 @@
 
     function calcTitle(item, t) {
         const enabled = !!(item && item.enabled);
-        const name = item && (item.name || item.targetId) ? String(item.name || item.targetId) : (t ? t('Item') : 'Item');
+        const group = item && item.group ? String(item.group).trim() : '';
+        const targetId = item && item.targetId ? String(item.targetId).trim() : '';
+        const id = (group && targetId) ? `${group}.${targetId}` : (targetId || group);
+        const name = item && (item.name || id) ? String(item.name || id) : (t ? t('Item') : 'Item');
         return `${enabled ? '🟢 ' : '⚪ '}${name}`;
     }
 
@@ -89,6 +92,7 @@
         const item = {
             enabled: false,
             name: '',
+            group: '',
             targetId: '',
             mode: 'formula',
             sourceState: '',
@@ -97,6 +101,7 @@
             type: '',
             role: '',
             unit: '',
+            noNegative: false,
             clamp: false,
             min: '',
             max: '',
@@ -106,7 +111,8 @@
 
     function createDataSolectrusItemsEditor(React, AdapterReact) {
         return function DataSolectrusItemsEditor(props) {
-            const attr = (props && typeof props.attr === 'string' && props.attr) ? props.attr : 'items';
+            const DEFAULT_ITEMS_ATTR = 'items';
+            const attr = (props && typeof props.attr === 'string' && props.attr) ? props.attr : DEFAULT_ITEMS_ATTR;
             const dataIsArray = Array.isArray(props && props.data);
             const dataIsObject = !!(props && props.data && typeof props.data === 'object' && !dataIsArray);
 
@@ -195,7 +201,13 @@
                 return text;
             };
 
-            const items = dataIsArray ? normalizeItems(props.data) : normalizeItems(props.data && props.data[attr]);
+            const items = dataIsArray
+                ? normalizeItems(props.data)
+                : normalizeItems(
+                      (props.data && props.data[DEFAULT_ITEMS_ATTR]) ||
+                          (props.data && props.data[attr]) ||
+                          (props.data && props.data.itemsEditor)
+                  );
 
             const [selectedIndex, setSelectedIndex] = React.useState(0);
             const [selectContext, setSelectContext] = React.useState(null);
@@ -259,7 +271,21 @@
                 const safeItems = normalizeItems(nextItems).map(it => ensureTitle(it, t));
 
                 if (props && props.custom) {
-                    onChange(attr, safeItems);
+                    // Some Admin versions do NOT allow passing `attr` in jsonConfig for custom controls.
+                    // So we always write to native.items, regardless of the schema field name.
+                    try {
+                        onChange(DEFAULT_ITEMS_ATTR, safeItems);
+                    } catch {
+                        // ignore
+                    }
+                    // Best-effort: also update the field that hosts this custom control to keep the UI in sync.
+                    if (attr !== DEFAULT_ITEMS_ATTR) {
+                        try {
+                            onChange(attr, safeItems);
+                        } catch {
+                            // ignore
+                        }
+                    }
                     return;
                 }
 
@@ -663,6 +689,14 @@
                                   value: selectedItem.name || '',
                                   onChange: e => updateSelected('name', e.target.value),
                               }),
+                              React.createElement('label', { style: labelStyle }, t('Folder/Group')),
+                              React.createElement('input', {
+                                  style: inputStyle,
+                                  type: 'text',
+                                  value: selectedItem.group || '',
+                                  onChange: e => updateSelected('group', e.target.value),
+                                  placeholder: 'pv',
+                              }),
                               React.createElement('label', { style: labelStyle }, t('Target ID')),
                               React.createElement('input', {
                                   style: inputStyle,
@@ -820,6 +854,16 @@
                                       )
                                   )
                               ),
+                              React.createElement(
+                                  'label',
+                                  { style: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 } },
+                                  React.createElement('input', {
+                                      type: 'checkbox',
+                                      checked: !!selectedItem.noNegative,
+                                      onChange: e => updateSelected('noNegative', !!e.target.checked),
+                                  }),
+                                  React.createElement('span', null, t('Clamp negative to 0'))
+                              ),
                               selectedItem.clamp
                                   ? React.createElement(
                                         'div',
@@ -882,6 +926,9 @@
                     DataSolectrusItemsEditor,
                 },
             };
+        },
+        'Components': async function () {
+            return moduleMap['./Components']();
         },
     };
 
