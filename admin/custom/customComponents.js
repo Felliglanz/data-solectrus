@@ -9,7 +9,7 @@
     'use strict';
 
     const REMOTE_NAME = 'DataSolectrusItems';
-    const UI_VERSION = '2026-01-23 20260123-2';
+    const UI_VERSION = '2026-01-23 20260123-3';
     const DEBUG = false;
     let shareScope;
 
@@ -738,13 +738,11 @@
                                           )
                                       )
                                   ),
-                                  DEBUG
-                                      ? React.createElement(
-                                            'div',
-                                            { style: { fontSize: 11, opacity: 0.7, color: colors.textMuted } },
-                                            `UI ${UI_VERSION}`
-                                        )
-                                      : null
+                                  React.createElement(
+                                      'div',
+                                      { style: { fontSize: 11, opacity: 0.7, color: colors.textMuted } },
+                                      `UI ${UI_VERSION}`
+                                  )
                               ),
                               React.createElement(
                                   'div',
@@ -880,7 +878,7 @@
                                                     key: idx,
                                                     style: {
                                                         display: 'grid',
-                                                        gridTemplateColumns: '140px 1fr 170px 90px 90px',
+                                                        gridTemplateColumns: '140px 1fr 90px 90px',
                                                         gap: 8,
                                                         alignItems: 'center',
                                                         marginTop: 8,
@@ -901,16 +899,30 @@
                                                     onChange: e => updateInput(idx, 'sourceState', e.target.value),
                                                 }),
                                                 React.createElement(
-                                                    'label',
-                                                    { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: colors.textMuted } },
-                                                    React.createElement('input', {
-                                                        type: 'checkbox',
-                                                        checked: !!(inp && inp.noNegative),
-                                                        onChange: e => updateInput(idx, 'noNegative', !!e.target.checked),
-                                                    }),
-                                                    React.createElement('span', null, t('Clamp input negative to 0'))
+                                                    'div',
+                                                    { style: { display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'stretch' } },
+                                                    React.createElement(
+                                                        'label',
+                                                        {
+                                                            style: {
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: 6,
+                                                                fontSize: 11,
+                                                                color: colors.textMuted,
+                                                                cursor: 'pointer',
+                                                            },
+                                                            title: t('Clamp input negative to 0'),
+                                                        },
+                                                        React.createElement('input', {
+                                                            type: 'checkbox',
+                                                            checked: !!(inp && inp.noNegative),
+                                                            onChange: e => updateInput(idx, 'noNegative', !!e.target.checked),
+                                                        }),
+                                                        React.createElement('span', null, 'neg→0')
+                                                    ),
+                                                    renderSelectButton(() => setSelectContext({ kind: 'input', index: idx }))
                                                 ),
-                                                renderSelectButton(() => setSelectContext({ kind: 'input', index: idx })),
                                                 React.createElement(
                                                     'button',
                                                     { type: 'button', style: btnDangerStyle, onClick: () => deleteInput(idx) },
