@@ -9,7 +9,7 @@
     'use strict';
 
     const REMOTE_NAME = 'DataSolectrusItems';
-    const UI_VERSION = '2026-01-22 20260122-1';
+    const UI_VERSION = '2026-01-23 20260123-1';
     const DEBUG = false;
     let shareScope;
 
@@ -211,6 +211,36 @@
 
             const [selectedIndex, setSelectedIndex] = React.useState(0);
             const [selectContext, setSelectContext] = React.useState(null);
+            const [openDropdown, setOpenDropdown] = React.useState(null);
+
+            React.useEffect(() => {
+                const onDocMouseDown = e => {
+                    if (!openDropdown) return;
+                    try {
+                        const target = e && e.target;
+                        if (target && target.closest && target.closest('[data-ds-dropdown="1"]')) {
+                            return;
+                        }
+                    } catch {
+                        // ignore
+                    }
+                    setOpenDropdown(null);
+                };
+
+                try {
+                    globalThis.document && globalThis.document.addEventListener('mousedown', onDocMouseDown);
+                } catch {
+                    // ignore
+                }
+
+                return () => {
+                    try {
+                        globalThis.document && globalThis.document.removeEventListener('mousedown', onDocMouseDown);
+                    } catch {
+                        // ignore
+                    }
+                };
+            }, [openDropdown]);
 
             React.useEffect(() => {
                 if (selectedIndex > items.length - 1) {
@@ -474,6 +504,45 @@
                 color: isDark ? '#ffffff' : '#111111',
             };
 
+            // Native <select>/<option> popups can ignore styles in Chrome dark mode (OS-rendered).
+            // Use a custom dropdown to ensure readable options.
+            const dropdownBg = isDark ? '#1f1f1f' : '#ffffff';
+            const dropdownText = isDark ? '#ffffff' : '#111111';
+
+            const dropdownButtonStyle = Object.assign({}, inputStyle, {
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: dropdownBg,
+                color: dropdownText,
+                cursor: 'pointer',
+                userSelect: 'none',
+            });
+
+            const dropdownMenuStyle = {
+                position: 'absolute',
+                zIndex: 2000,
+                left: 0,
+                right: 0,
+                marginTop: 6,
+                borderRadius: 8,
+                border: `1px solid ${colors.border}`,
+                background: dropdownBg,
+                color: dropdownText,
+                boxShadow: isDark ? '0 10px 30px rgba(0,0,0,0.45)' : '0 10px 30px rgba(0,0,0,0.18)',
+                maxHeight: 260,
+                overflowY: 'auto',
+                padding: 6,
+            };
+
+            const dropdownItemStyle = isActive => ({
+                padding: '8px 10px',
+                borderRadius: 6,
+                cursor: 'pointer',
+                background: isActive ? colors.active : 'transparent',
+                color: dropdownText,
+            });
+
             const rowStyle2 = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 };
 
             const headerBarStyle = {
@@ -721,14 +790,57 @@
                               }),
                               React.createElement('label', { style: labelStyle }, t('Mode')),
                               React.createElement(
-                                  'select',
-                                  {
-                                      style: selectStyle,
-                                      value: selectedItem.mode || 'formula',
-                                      onChange: e => updateSelected('mode', e.target.value),
-                                  },
-                                  React.createElement('option', { value: 'formula', style: optionStyle }, t('Formula')),
-                                  React.createElement('option', { value: 'source', style: optionStyle }, t('Source'))
+                                  'div',
+                                  { style: { position: 'relative' }, 'data-ds-dropdown': '1' },
+                                  React.createElement(
+                                      'div',
+                                      {
+                                          style: dropdownButtonStyle,
+                                          role: 'button',
+                                          tabIndex: 0,
+                                          onClick: () => setOpenDropdown(openDropdown === 'mode' ? null : 'mode'),
+                                          onKeyDown: e => {
+                                              if (e && (e.key === 'Enter' || e.key === ' ')) {
+                                                  e.preventDefault();
+                                                  setOpenDropdown(openDropdown === 'mode' ? null : 'mode');
+                                              }
+                                          },
+                                      },
+                                      React.createElement(
+                                          'span',
+                                          null,
+                                          (selectedItem.mode || 'formula') === 'source' ? t('Source') : t('Formula')
+                                      ),
+                                      React.createElement('span', { style: { opacity: 0.75 } }, '▾')
+                                  ),
+                                  openDropdown === 'mode'
+                                      ? React.createElement(
+                                            'div',
+                                            { style: dropdownMenuStyle },
+                                            React.createElement(
+                                                'div',
+                                                {
+                                                    style: dropdownItemStyle((selectedItem.mode || 'formula') === 'formula'),
+                                                    onClick: () => {
+                                                        updateSelected('mode', 'formula');
+                                                        setOpenDropdown(null);
+                                                    },
+                                                },
+                                                t('Formula')
+                                            ),
+                                            React.createElement(
+                                                'div',
+                                                {
+                                                    style: dropdownItemStyle((selectedItem.mode || 'formula') === 'source'),
+                                                    onClick: () => {
+                                                        updateSelected('mode', 'source');
+                                                        setOpenDropdown(null);
+                                                    },
+                                                },
+                                                t('Source')
+                                            )
+                                        )
+                                      : null
                               ),
                               (selectedItem.mode || 'formula') === 'source'
                                   ? React.createElement(
@@ -812,17 +924,98 @@
                                       null,
                                       React.createElement('label', { style: labelStyle }, t('Datatype')),
                                       React.createElement(
-                                          'select',
-                                          {
-                                              style: selectStyle,
-                                              value: selectedItem.type || '',
-                                              onChange: e => updateSelected('type', e.target.value),
-                                          },
-                                          React.createElement('option', { value: '', style: optionStyle }, t('Standard')),
-                                          React.createElement('option', { value: 'number', style: optionStyle }, t('Number')),
-                                          React.createElement('option', { value: 'boolean', style: optionStyle }, t('Boolean')),
-                                          React.createElement('option', { value: 'string', style: optionStyle }, t('String')),
-                                          React.createElement('option', { value: 'mixed', style: optionStyle }, t('Mixed'))
+                                          'div',
+                                          { style: { position: 'relative' }, 'data-ds-dropdown': '1' },
+                                          React.createElement(
+                                              'div',
+                                              {
+                                                  style: dropdownButtonStyle,
+                                                  role: 'button',
+                                                  tabIndex: 0,
+                                                  onClick: () => setOpenDropdown(openDropdown === 'datatype' ? null : 'datatype'),
+                                                  onKeyDown: e => {
+                                                      if (e && (e.key === 'Enter' || e.key === ' ')) {
+                                                          e.preventDefault();
+                                                          setOpenDropdown(openDropdown === 'datatype' ? null : 'datatype');
+                                                      }
+                                                  },
+                                              },
+                                              React.createElement(
+                                                  'span',
+                                                  null,
+                                                  selectedItem.type === 'number'
+                                                      ? t('Number')
+                                                      : selectedItem.type === 'boolean'
+                                                            ? t('Boolean')
+                                                            : selectedItem.type === 'string'
+                                                                  ? t('String')
+                                                                  : selectedItem.type === 'mixed'
+                                                                        ? t('Mixed')
+                                                                        : t('Standard')
+                                              ),
+                                              React.createElement('span', { style: { opacity: 0.75 } }, '▾')
+                                          ),
+                                          openDropdown === 'datatype'
+                                              ? React.createElement(
+                                                    'div',
+                                                    { style: dropdownMenuStyle },
+                                                    React.createElement(
+                                                        'div',
+                                                        {
+                                                            style: dropdownItemStyle(!selectedItem.type),
+                                                            onClick: () => {
+                                                                updateSelected('type', '');
+                                                                setOpenDropdown(null);
+                                                            },
+                                                        },
+                                                        t('Standard')
+                                                    ),
+                                                    React.createElement(
+                                                        'div',
+                                                        {
+                                                            style: dropdownItemStyle(selectedItem.type === 'number'),
+                                                            onClick: () => {
+                                                                updateSelected('type', 'number');
+                                                                setOpenDropdown(null);
+                                                            },
+                                                        },
+                                                        t('Number')
+                                                    ),
+                                                    React.createElement(
+                                                        'div',
+                                                        {
+                                                            style: dropdownItemStyle(selectedItem.type === 'boolean'),
+                                                            onClick: () => {
+                                                                updateSelected('type', 'boolean');
+                                                                setOpenDropdown(null);
+                                                            },
+                                                        },
+                                                        t('Boolean')
+                                                    ),
+                                                    React.createElement(
+                                                        'div',
+                                                        {
+                                                            style: dropdownItemStyle(selectedItem.type === 'string'),
+                                                            onClick: () => {
+                                                                updateSelected('type', 'string');
+                                                                setOpenDropdown(null);
+                                                            },
+                                                        },
+                                                        t('String')
+                                                    ),
+                                                    React.createElement(
+                                                        'div',
+                                                        {
+                                                            style: dropdownItemStyle(selectedItem.type === 'mixed'),
+                                                            onClick: () => {
+                                                                updateSelected('type', 'mixed');
+                                                                setOpenDropdown(null);
+                                                            },
+                                                        },
+                                                        t('Mixed')
+                                                    )
+                                                )
+                                              : null
                                       )
                                   ),
                                   React.createElement(

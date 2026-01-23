@@ -30,6 +30,13 @@ class DataSolectrus extends utils.Adapter {
 			round: Math.round,
 			floor: Math.floor,
 			ceil: Math.ceil,
+			deadband: (value, threshold) => {
+				const v = Number(value);
+				const t = Number(threshold);
+				if (!Number.isFinite(v)) return 0;
+				if (!Number.isFinite(t) || t <= 0) return v;
+				return Math.abs(v) < t ? 0 : v;
+			},
 			clamp: (value, min, max) => {
 				const v = Number(value);
 				const lo = Number(min);
