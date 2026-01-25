@@ -9,7 +9,7 @@
     'use strict';
 
     const REMOTE_NAME = 'DataSolectrusItems';
-    const UI_VERSION = '2026-01-23 20260123-5';
+    const UI_VERSION = '2026-01-25 20260125-1';
     const DEBUG = false;
     let shareScope;
 
@@ -147,7 +147,10 @@
 
             const themeType = getThemeType();
             const isDark = themeType === 'dark';
-            const colors = isDark
+            const theme = (props && props.theme) || null;
+            const themePalette = theme && theme.palette ? theme.palette : null;
+
+            const fallbackColors = isDark
                 ? {
                       panelBg: '#1f1f1f',
                       panelBg2: '#242424',
@@ -169,9 +172,26 @@
                       active: 'rgba(0,0,0,0.08)',
                   };
 
+            // Prefer the surrounding Admin theme to keep this editor visually consistent.
+            // Fallback to the self-defined palette if theme is unavailable.
+            const colors = Object.assign({}, fallbackColors, {
+                panelBg: (themePalette && themePalette.background && themePalette.background.paper) || fallbackColors.panelBg,
+                panelBg2:
+                    (themePalette && themePalette.background && (themePalette.background.paper || themePalette.background.default)) ||
+                    fallbackColors.panelBg2,
+                text: (themePalette && themePalette.text && themePalette.text.primary) || fallbackColors.text,
+                textMuted: (themePalette && themePalette.text && themePalette.text.secondary) || fallbackColors.textMuted,
+                border: (themePalette && themePalette.divider) || fallbackColors.border,
+                rowBorder: (themePalette && themePalette.divider) || fallbackColors.rowBorder,
+                hover: (themePalette && themePalette.action && themePalette.action.hover) || fallbackColors.hover,
+                active: (themePalette && themePalette.action && themePalette.action.selected) || fallbackColors.active,
+                inputBg:
+                    (themePalette && themePalette.background && themePalette.background.paper) ||
+                    (isDark ? 'rgba(255,255,255,0.06)' : '#ffffff'),
+            });
+
             const DialogSelectID = AdapterReact && (AdapterReact.DialogSelectID || AdapterReact.SelectID);
             const socket = (props && props.socket) || globalThis.socket || globalThis._socket || null;
-            const theme = (props && props.theme) || null;
 
             const t = text => {
                 try {
@@ -487,21 +507,21 @@
                 fontFamily: 'inherit',
                 fontSize: 14,
                 color: colors.text,
-                background: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff',
+                background: colors.inputBg,
             };
 
             // Chrome/OS dropdowns may render <option> on a light surface even in dark mode,
             // but inherit the white text color -> white on white. Force readable option styling.
             const selectStyle = Object.assign({}, inputStyle, {
-                backgroundColor: isDark ? '#1f1f1f' : '#ffffff',
-                color: isDark ? '#ffffff' : '#111111',
+                backgroundColor: colors.panelBg,
+                color: colors.text,
                 colorScheme: isDark ? 'dark' : 'light',
-                WebkitTextFillColor: isDark ? '#ffffff' : '#111111',
+                WebkitTextFillColor: colors.text,
             });
 
             const optionStyle = {
-                background: isDark ? '#1f1f1f' : '#ffffff',
-                color: isDark ? '#ffffff' : '#111111',
+                background: colors.panelBg,
+                color: colors.text,
             };
 
             // Native <select>/<option> popups can ignore styles in Chrome dark mode (OS-rendered).
