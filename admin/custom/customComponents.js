@@ -9,7 +9,7 @@
     'use strict';
 
     const REMOTE_NAME = 'DataSolectrusItems';
-    const UI_VERSION = '2026-01-25 20260125-2';
+    const UI_VERSION = '2026-01-25 20260125-3';
     const DEBUG = false;
     let shareScope;
 
@@ -119,10 +119,18 @@
             const getDomThemeType = () => {
                 try {
                     const doc = globalThis.document;
-                    const htmlTheme = doc && doc.documentElement ? doc.documentElement.getAttribute('data-theme') : '';
-                    if (htmlTheme === 'dark' || htmlTheme === 'light') {
-                        return htmlTheme;
-                    }
+                    const root = doc && doc.documentElement ? doc.documentElement : null;
+
+                    const rootAttrTheme = root ? root.getAttribute('data-theme') : '';
+                    if (rootAttrTheme === 'dark' || rootAttrTheme === 'light') return rootAttrTheme;
+
+                    // MUI v5 color scheme (some Admin versions)
+                    const muiScheme = root ? root.getAttribute('data-mui-color-scheme') : '';
+                    if (muiScheme === 'dark' || muiScheme === 'light') return muiScheme;
+
+                    const colorScheme = root ? root.getAttribute('data-color-scheme') : '';
+                    if (colorScheme === 'dark' || colorScheme === 'light') return colorScheme;
+
                     const body = doc ? doc.body : null;
                     if (body && body.classList) {
                         if (body.classList.contains('mui-theme-dark') || body.classList.contains('iob-theme-dark')) {
@@ -131,6 +139,11 @@
                         if (body.classList.contains('mui-theme-light') || body.classList.contains('iob-theme-light')) {
                             return 'light';
                         }
+                    }
+
+                    if (root && root.classList) {
+                        if (root.classList.contains('mui-theme-dark') || root.classList.contains('iob-theme-dark')) return 'dark';
+                        if (root.classList.contains('mui-theme-light') || root.classList.contains('iob-theme-light')) return 'light';
                     }
                 } catch {
                     // ignore
@@ -162,30 +175,55 @@
 
             React.useEffect(() => {
                 let observer;
+                let interval;
+                let media;
 
                 const update = () => {
                     const next = getThemeType();
-                    if ((next === 'dark' || next === 'light') && next !== themeType) {
-                        setThemeType(next);
+                    if (next === 'dark' || next === 'light') {
+                        setThemeType(prev => (prev === next ? prev : next));
                     }
                 };
 
                 // Sync once on mount.
                 update();
 
+                // Best-effort: detect theme changes without relying on custom component re-render.
                 try {
                     const doc = globalThis.document;
-                    if (!doc || typeof globalThis.MutationObserver !== 'function') {
-                        return undefined;
-                    }
+                    if (doc && typeof globalThis.MutationObserver === 'function') {
+                        observer = new globalThis.MutationObserver(update);
 
-                    observer = new globalThis.MutationObserver(update);
-
-                    if (doc.documentElement) {
-                        observer.observe(doc.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+                        // Observe root/body + body subtree for attribute-based theme markers.
+                        const attributeFilter = ['data-theme', 'data-mui-color-scheme', 'data-color-scheme', 'class'];
+                        if (doc.documentElement) {
+                            observer.observe(doc.documentElement, { attributes: true, attributeFilter });
+                        }
+                        if (doc.body) {
+                            observer.observe(doc.body, { attributes: true, attributeFilter: ['class'] });
+                            observer.observe(doc.body, { attributes: true, subtree: true, attributeFilter });
+                        }
                     }
-                    if (doc.body) {
-                        observer.observe(doc.body, { attributes: true, attributeFilter: ['class'] });
+                } catch {
+                    // ignore
+                }
+
+                // Fallback: periodic check (cheap) for Admin versions that don't mutate attributes we track.
+                try {
+                    interval = globalThis.setInterval(update, 500);
+                } catch {
+                    // ignore
+                }
+
+                // Browser/OS theme changes.
+                try {
+                    if (globalThis.matchMedia) {
+                        media = globalThis.matchMedia('(prefers-color-scheme: dark)');
+                        if (media && typeof media.addEventListener === 'function') {
+                            media.addEventListener('change', update);
+                        } else if (media && typeof media.addListener === 'function') {
+                            media.addListener(update);
+                        }
                     }
                 } catch {
                     // ignore
@@ -197,8 +235,22 @@
                     } catch {
                         // ignore
                     }
+                    try {
+                        interval && globalThis.clearInterval(interval);
+                    } catch {
+                        // ignore
+                    }
+                    try {
+                        if (media && typeof media.removeEventListener === 'function') {
+                            media.removeEventListener('change', update);
+                        } else if (media && typeof media.removeListener === 'function') {
+                            media.removeListener(update);
+                        }
+                    } catch {
+                        // ignore
+                    }
                 };
-            }, [themeType]);
+            }, []);
 
             const isDark = themeType === 'dark';
             const theme = (props && props.theme) || null;
