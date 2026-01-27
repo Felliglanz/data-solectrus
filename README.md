@@ -1,12 +1,14 @@
-# ioBroker.Data-Solectrus (privat)
+# ioBroker.Data-Solectrus
 
-Privater ioBroker-Adapter, der eigene States unter `data-solectrus.0.*` anlegt und im festen Intervall (Standard: 5s, **wall-clock aligned**) mit berechneten Werten befüllt.
+<img src="admin/data-solectrus.png" alt="SOLECTRUS" width="120" />
+
+ioBroker-Adapter, der eigene States unter `data-solectrus.0.*` anlegt und im festen Intervall (Standard: 5s, **wall-clock aligned**) mit berechneten Werten befüllt.
 
 Ziel: Datenpunkte (z.B. PV/Verbrauch/Batterie) per **Formeln** aus beliebigen ioBroker-States zusammenstellen und als adapter-eigene States bereitstellen (z.B. für SOLECTRUS-Dashboards).
 
 ## Installation
 
-Der Adapter ist als privates Paket gedacht und wird typischerweise als `.tgz` installiert.
+Der Adapter kann lokal als `.tgz` gebaut und in ioBroker installiert werden (oder via GitHub-Release, falls vorhanden).
 
 - Paket bauen: `npm pack`
 - Installation in ioBroker: Admin → Adapter → „Benutzerdefiniert“ / URL/Datei → `iobroker.data-solectrus-<version>.tgz`
@@ -146,5 +148,12 @@ Nicht erlaubt sind z.B. Member-Zugriffe (`a.b`), `new`, `this`, Funktionskonstru
 
 ## Branding / Logo
 
-Dieses Projekt liefert absichtlich **kein** Drittanbieter-Logo aus (z.B. SOLECTRUS), um Marken-/Copyright-Themen zu vermeiden.
+Dieses Projekt verwendet das offizielle SOLECTRUS Logo mit Freigabe durch Georg Ledermann.
+
+Hinweis: SOLECTRUS ist eine Marke der jeweiligen Inhaber.
+
+## Maintainer / Contributing
+
+Dieses Repository ist öffentlich, um die Weiterentwicklung gemeinsam mit einem Maintainer für dessen Adapter zu ermöglichen.
+PRs/Issues sind willkommen.
 

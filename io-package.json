@@ -3,6 +3,8 @@
     "name": "data-solectrus",
     "version": "0.1.21",
     "title": "Data-Solectrus",
+    "icon": "data-solectrus.png",
+    "extIcon": "https://raw.githubusercontent.com/Felliglanz/data-solectrus/main/admin/data-solectrus.png",
     "titleLang": {
       "en": "Data-Solectrus",
       "de": "Data-Solectrus"
@@ -22,7 +24,7 @@
     "connectionType": "none",
     "dataSource": "poll",
     "authors": [
-      "Sven (private)"
+      "Sven"
     ],
     "license": "MIT"
   },
