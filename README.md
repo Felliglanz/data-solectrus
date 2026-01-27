@@ -1,4 +1,4 @@
-# ioBroker.Data-Solectrus
+# ioBroker.Data-SOLECTRUS
 
 <img src="admin/data-solectrus.png" alt="SOLECTRUS" width="120" />
 

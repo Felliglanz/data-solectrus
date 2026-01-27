@@ -917,7 +917,7 @@
                                           width: 28,
                                           height: 28,
                                           style: { display: 'block', borderRadius: 6 },
-                                          alt: 'Data-Solectrus',
+                                          alt: 'Data-SOLECTRUS',
                                       }),
                                       React.createElement(
                                           'div',
@@ -925,7 +925,7 @@
                                           React.createElement(
                                               'div',
                                               { style: { fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } },
-                                              'Data-Solectrus'
+                                              'Data-SOLECTRUS'
                                           ),
                                           React.createElement(
                                               'div',
