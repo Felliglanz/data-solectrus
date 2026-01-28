@@ -4,13 +4,13 @@ Hier sammeln wir konkrete Beispiele, die du 1:1 nachbauen kannst.
 
 ## Übersicht
 
-- [PV-Leistung aus mehreren Quellen summieren](PV-Leistung-aus-mehreren-Quellen)
-- [Verbrauchergruppen zusammenfassen](Verbrauchergruppen)
-- [Hausverbrauch berechnen](Hausverbrauch)
-- [Batterie-Leistung aus zwei Messwerten (Laden/Entladen)](Batterie-Leistung-aus-zwei-States)
-- [SoC aus mehreren Speichern (gewichtet)](SoC-aus-mehreren-Speichern)
-- [Werte begrenzen / klemmen](Werte-begrenzen)
-- [PV-Überschuss & Eigenverbrauch](PV-Ueberschuss-und-Eigenverbrauch)
+- [PV-Leistung aus mehreren Quellen summieren](https://github.com/Felliglanz/data-solectrus/wiki/PV-Leistung-aus-mehreren-Quellen)
+- [Verbrauchergruppen zusammenfassen](https://github.com/Felliglanz/data-solectrus/wiki/Verbrauchergruppen)
+- [Hausverbrauch berechnen](https://github.com/Felliglanz/data-solectrus/wiki/Hausverbrauch)
+- [Batterie-Leistung aus zwei Messwerten (Laden/Entladen)](https://github.com/Felliglanz/data-solectrus/wiki/Batterie-Leistung-aus-zwei-States)
+- [SoC aus mehreren Speichern (gewichtet)](https://github.com/Felliglanz/data-solectrus/wiki/SoC-aus-mehreren-Speichern)
+- [Werte begrenzen / klemmen](https://github.com/Felliglanz/data-solectrus/wiki/Werte-begrenzen)
+- [PV-Überschuss & Eigenverbrauch](https://github.com/Felliglanz/data-solectrus/wiki/PV-Ueberschuss-und-Eigenverbrauch)
 
 ## Beitrag leisten
 
