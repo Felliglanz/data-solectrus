@@ -16,7 +16,7 @@ Die Idee (inspiriert von Georgs Ansatz aus der SOLECTRUS-Community) ist daher:
 
 - Jeder Verbraucher liefert eine **numerische** Leistung in Watt (W) als ioBroker-State.
   - Ideal sind States wie `...power` / `...apower` / `...activePower`.
-  - Falls dein MQTT-Payload JSON ist (z.B. `{ "apower": 97.5 }`) und im ioBroker-State als Text landet, brauchst du vorher einen numerischen State (Alias oder kleines Script), der nur den Zahlenwert enthält.
+  - Falls dein MQTT-Payload JSON ist (z.B. `{ "apower": 97.5 }`) und im ioBroker-State als Text landet, kannst du im Adapter pro Input ein **JSONPath (optional)** setzen, z.B. `$.apower`.
 
 ## Beispiel: Gruppen "Küche" und "IT"
 

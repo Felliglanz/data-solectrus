@@ -46,6 +46,9 @@ Felder:
 - **ioBroker Source State**:
 	- bei `mode=source`: der Quell-State (vollqualifiziert, z.B. `some.adapter.0.channel.state`).
 	- bei `mode=formula`: pro Input ein Source-State.
+- **JSONPath (optional)**:
+	- Wenn der Source-State (oder ein Input) statt einer Zahl ein JSON als Text enthält, kann hier ein JSONPath angegeben werden, um daraus einen numerischen Wert zu extrahieren.
+	- Beispiele: `$.apower`, `$.aenergy.by_minute[2]`
 - **Inputs** (nur `mode=formula`): Liste aus (Key, Source State).
 	- Optional pro Input: **Input negativ auf 0** (klemmt nur diesen Input vor der Rechnung).
 	- **Wichtig zu Keys**: In Formeln sind `-` und Leerzeichen Operatoren/Trenner.

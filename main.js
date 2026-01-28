@@ -22,6 +22,7 @@ class DataSolectrus extends utils.Adapter {
 		this.currentSnapshot = null;
 		this.tickTimer = null;
 		this.isUnloading = false;
+		this.jsonPathWarned = new Set();
 
 		this.formulaFunctions = {
 			min: Math.min,
@@ -57,6 +58,146 @@ class DataSolectrus extends utils.Adapter {
 	safeNum(val, fallback = 0) {
 		const n = Number(val);
 		return Number.isFinite(n) ? n : fallback;
+	}
+
+	warnOnce(key, msg) {
+		const k = String(key);
+		if (this.jsonPathWarned.has(k)) return;
+		this.jsonPathWarned.add(k);
+		this.log.warn(msg);
+	}
+
+	/**
+	 * Minimal JSONPath subset evaluator for typical IoT payloads.
+	 * Supported examples:
+	 * - $.apower
+	 * - $.aenergy.by_minute[2]
+	 * - $['temperature']['tC']
+	 *
+	 * Not supported: filters, wildcards, unions, recursive descent, functions.
+	 */
+	applyJsonPath(obj, path) {
+		if (!path) return undefined;
+		let p = String(path).trim();
+		if (!p) return undefined;
+
+		// Accept both "$.x" and ".x" as a convenience.
+		if (p.startsWith('.')) {
+			p = `$${p}`;
+		}
+		if (!p.startsWith('$')) {
+			return undefined;
+		}
+
+		let cur = obj;
+		let i = 1; // skip '$'
+		const len = p.length;
+		while (i < len) {
+			const ch = p[i];
+			if (ch === '.') {
+				i++;
+				let start = i;
+				while (i < len && /[A-Za-z0-9_]/.test(p[i])) i++;
+				const key = p.slice(start, i);
+				if (!key) return undefined;
+				if (cur === null || cur === undefined) return undefined;
+				cur = cur[key];
+				continue;
+			}
+			if (ch === '[') {
+				i++;
+				while (i < len && /\s/.test(p[i])) i++;
+				if (i >= len) return undefined;
+				const quote = p[i] === '"' || p[i] === "'" ? p[i] : null;
+				if (quote) {
+					i++;
+					let str = '';
+					while (i < len) {
+						const c = p[i];
+						if (c === '\\') {
+							if (i + 1 < len) {
+								str += p[i + 1];
+								i += 2;
+								continue;
+							}
+							return undefined;
+						}
+						if (c === quote) {
+							i++;
+							break;
+						}
+						str += c;
+						i++;
+					}
+					while (i < len && /\s/.test(p[i])) i++;
+					if (p[i] !== ']') return undefined;
+					i++;
+					if (cur === null || cur === undefined) return undefined;
+					cur = cur[str];
+					continue;
+				}
+
+				// array index
+				let start = i;
+				while (i < len && /[0-9]/.test(p[i])) i++;
+				const numStr = p.slice(start, i);
+				while (i < len && /\s/.test(p[i])) i++;
+				if (p[i] !== ']') return undefined;
+				i++;
+				const idx = Number(numStr);
+				if (!Number.isInteger(idx)) return undefined;
+				if (!Array.isArray(cur)) return undefined;
+				cur = cur[idx];
+				continue;
+			}
+
+			// Unknown token
+			return undefined;
+		}
+		return cur;
+	}
+
+	getNumericFromJsonPath(rawValue, jsonPath, warnKeyPrefix = '') {
+		const jp = jsonPath !== undefined && jsonPath !== null ? String(jsonPath).trim() : '';
+		if (!jp) {
+			return this.safeNum(rawValue);
+		}
+
+		// Be forgiving: if the value is already numeric-ish, just use it.
+		// This allows mixed setups where a state sometimes is numeric and sometimes JSON-string.
+		if (typeof rawValue === 'number' || typeof rawValue === 'boolean') {
+			return this.safeNum(rawValue);
+		}
+
+		let obj = null;
+		if (rawValue && typeof rawValue === 'object') {
+			obj = rawValue;
+		} else if (typeof rawValue === 'string') {
+			const s = rawValue.trim();
+			if (!s) {
+				this.warnOnce(`${warnKeyPrefix}|empty`, `JSONPath configured but source value is empty (${jp})`);
+				return 0;
+			}
+			try {
+				obj = JSON.parse(s);
+			} catch (e) {
+				this.warnOnce(
+					`${warnKeyPrefix}|parse`,
+					`Cannot parse JSON for JSONPath ${jp}: ${e && e.message ? e.message : e}`
+				);
+				return 0;
+			}
+		} else {
+			this.warnOnce(`${warnKeyPrefix}|type`, `JSONPath configured but source value is not JSON (${typeof rawValue}) (${jp})`);
+			return 0;
+		}
+
+		const extracted = this.applyJsonPath(obj, jp);
+		if (extracted === undefined) {
+			this.warnOnce(`${warnKeyPrefix}|path`, `JSONPath did not match any value: ${jp}`);
+			return 0;
+		}
+		return this.safeNum(extracted);
 	}
 
 	evalFormula(expr, vars) {
@@ -550,7 +691,8 @@ class DataSolectrus extends utils.Adapter {
 		const mode = item.mode || 'formula';
 		if (mode === 'source') {
 			const id = item.sourceState ? String(item.sourceState) : '';
-			let v = this.safeNum(snapshot ? snapshot.get(id) : this.cache.get(id));
+			const raw = snapshot ? snapshot.get(id) : this.cache.get(id);
+			let v = this.getNumericFromJsonPath(raw, item && item.jsonPath, `item|${id}|${item && item.targetId ? item.targetId : ''}`);
 			// Apply noNegative already at input/source time as well
 			if (item && item.noNegative && v < 0) {
 				v = 0;
@@ -568,7 +710,8 @@ class DataSolectrus extends utils.Adapter {
 			const key = keyRaw.replace(/[^a-zA-Z0-9_]/g, '_');
 			if (!key) continue;
 			const id = inp.sourceState ? String(inp.sourceState) : '';
-			let v = this.safeNum(snapshot ? snapshot.get(id) : this.cache.get(id));
+			const raw = snapshot ? snapshot.get(id) : this.cache.get(id);
+			let v = this.getNumericFromJsonPath(raw, inp && inp.jsonPath, `input|${id}|${key}`);
 			// Clamp negative inputs BEFORE formula evaluation.
 			// - item.noNegative: global for this item
 			// - inp.noNegative: only this input

@@ -1,6 +1,6 @@
 {
   "name": "iobroker.data-solectrus",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "description": "ioBroker adapter to compute/mirror PV & consumption values for SOLECTRUS dashboards",
   "main": "main.js",
   "keywords": [

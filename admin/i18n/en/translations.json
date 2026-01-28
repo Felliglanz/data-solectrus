@@ -36,6 +36,8 @@
   "Max": "Max",
   "Clamp input negative to 0": "Clamp input negative to 0",
   "Formula expression": "Formula expression",
+  "JSONPath (optional)": "JSONPath (optional)",
+  "e.g. $.apower": "e.g. $.apower",
   "e.g. pv1 + pv2 + pv3": "e.g. pv1 + pv2 + pv3",
   "e.g. some.adapter.0.channel.state": "e.g. some.adapter.0.channel.state",
   "Selection dialog not available": "Selection dialog not available",

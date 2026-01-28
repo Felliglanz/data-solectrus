@@ -96,6 +96,7 @@
             targetId: '',
             mode: 'formula',
             sourceState: '',
+            jsonPath: '',
             inputs: [],
             formula: '',
             type: '',
@@ -581,7 +582,7 @@
             const addInput = () => {
                 if (!selectedItem) return;
                 const inputs = Array.isArray(selectedItem.inputs) ? selectedItem.inputs.slice() : [];
-				inputs.push({ key: '', sourceState: '', noNegative: false });
+				inputs.push({ key: '', sourceState: '', jsonPath: '', noNegative: false });
                 updateSelected('inputs', inputs);
             };
 
@@ -1052,7 +1053,15 @@
                                                 placeholder: t('e.g. some.adapter.0.channel.state'),
                                             }),
                                             renderSelectButton(() => setSelectContext({ kind: 'itemSource' }))
-                                        )
+                                        ),
+									React.createElement('label', { style: labelStyle }, t('JSONPath (optional)')),
+									React.createElement('input', {
+										style: inputStyle,
+										type: 'text',
+										value: selectedItem.jsonPath || '',
+										onChange: e => updateSelected('jsonPath', e.target.value),
+										placeholder: t('e.g. $.apower'),
+									})
                                     )
                                   : React.createElement(
                                         React.Fragment,
@@ -1074,7 +1083,7 @@
                                                     key: idx,
                                                     style: {
                                                         display: 'grid',
-                                                        gridTemplateColumns: '140px 1fr 90px 90px',
+															gridTemplateColumns: '140px 1fr 160px 90px 90px',
                                                         gap: 8,
                                                         alignItems: 'center',
                                                         marginTop: 8,
@@ -1094,6 +1103,14 @@
                                                     placeholder: t('ioBroker Source State'),
                                                     onChange: e => updateInput(idx, 'sourceState', e.target.value),
                                                 }),
+															React.createElement('input', {
+																style: inputStyle,
+																type: 'text',
+																value: (inp && inp.jsonPath) || '',
+																placeholder: t('JSONPath (optional)'),
+																onChange: e => updateInput(idx, 'jsonPath', e.target.value),
+																title: t('e.g. $.apower'),
+															}),
                                                 React.createElement(
                                                     'div',
                                                     { style: { display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'stretch' } },

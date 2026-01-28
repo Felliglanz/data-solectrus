@@ -36,6 +36,8 @@
   "Min": "Min",
   "Max": "Max",
   "Formula expression": "Formel-Ausdruck",
+  "JSONPath (optional)": "JSONPath (optional)",
+  "e.g. $.apower": "z.B. $.apower",
   "e.g. pv1 + pv2 + pv3": "z.B. pv1 + pv2 + pv3",
   "e.g. some.adapter.0.channel.state": "z.B. irgendein.adapter.0.kanal.state",
   "Selection dialog not available": "Auswahldialog nicht verfügbar",
