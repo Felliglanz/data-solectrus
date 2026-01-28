@@ -9,6 +9,7 @@
 ### Changed
 
 - Wiki/README updated: JSON payloads no longer require a separate alias/script when JSONPath is configured.
+- When `Datatype` is set to `boolean` or `string`, the adapter now writes real booleans/strings to the output state (not 0/1).
 
 ### Notes
 

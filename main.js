@@ -754,6 +754,22 @@ class DataSolectrus extends utils.Adapter {
 		return v;
 	}
 
+	castValueForItemType(item, value) {
+		const t = item && item.type ? String(item.type) : '';
+		if (t === 'boolean') {
+			// ioBroker boolean states should receive real booleans.
+			const n = this.safeNum(value);
+			return n !== 0;
+		}
+		if (t === 'string') {
+			// Always write a real string.
+			if (value === undefined || value === null) return '';
+			return String(value);
+		}
+		// number/mixed (and default)
+		return value;
+	}
+
 	async runTick() {
 		const start = Date.now();
 		const items = Array.isArray(this.config.items) ? this.config.items : [];
@@ -775,7 +791,8 @@ class DataSolectrus extends utils.Adapter {
 
 			try {
 				const raw = await this.computeItemValue(item, snapshot);
-				const value = this.applyResultRules(item, raw);
+				const valueNum = this.applyResultRules(item, raw);
+				const value = this.castValueForItemType(item, valueNum);
 				await this.setStateAsync(targetId, value, true);
 			} catch (e) {
 				const name = item.name || targetId;
