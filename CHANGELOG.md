@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.5 - 2026-01-29
+
+### Changed
+
+- Internal refactor: extracted formula parsing/evaluation and JSONPath helpers into separate modules under `lib/` to keep `main.js` smaller and easier to maintain.
+- No functional changes intended.
+
 ## 0.2.4 - 2026-01-29
 
 ### Added
