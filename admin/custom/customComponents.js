@@ -110,6 +110,377 @@
         return ensureTitle(item, t);
     }
 
+    function stringifyCompact(value, maxLen = 70) {
+        if (value === null) return 'null';
+        if (value === undefined) return 'undefined';
+        let str;
+        try {
+            if (typeof value === 'string') {
+                str = value;
+            } else if (typeof value === 'number' || typeof value === 'boolean') {
+                str = String(value);
+            } else {
+                str = JSON.stringify(value);
+            }
+        } catch {
+            str = String(value);
+        }
+        str = String(str);
+        if (str.length <= maxLen) return str;
+        return str.slice(0, Math.max(0, maxLen - 1)) + '…';
+    }
+
+    function sanitizeInputKey(raw) {
+        const keyRaw = raw ? String(raw).trim() : '';
+        const key = keyRaw.replace(/[^a-zA-Z0-9_]/g, '_');
+        if (key === '__proto__' || key === 'prototype' || key === 'constructor') return '';
+        return key;
+    }
+
+    function normalizeFormulaForPreview(expr) {
+        // Keep in sync (loosely) with adapter-side normalization, but only for preview.
+        // - AND/OR/NOT -> &&/||/! outside strings
+        // - single '=' -> '==' outside strings
+        let s = String(expr || '');
+        let out = '';
+        let inStr = null;
+        for (let i = 0; i < s.length; i++) {
+            const ch = s[i];
+            if (inStr) {
+                out += ch;
+                if (ch === '\\') {
+                    // skip escaped char
+                    i++;
+                    if (i < s.length) out += s[i];
+                    continue;
+                }
+                if (ch === inStr) inStr = null;
+                continue;
+            }
+            if (ch === '"' || ch === "'") {
+                inStr = ch;
+                out += ch;
+                continue;
+            }
+            out += ch;
+        }
+
+        // Replace logical words outside strings by splitting again.
+        // This is conservative (word boundaries) and good enough for preview.
+        inStr = null;
+        let buf = '';
+        for (let i = 0; i < out.length; i++) {
+            const ch = out[i];
+            if (inStr) {
+                buf += ch;
+                if (ch === '\\') {
+                    i++;
+                    if (i < out.length) buf += out[i];
+                    continue;
+                }
+                if (ch === inStr) inStr = null;
+                continue;
+            }
+            if (ch === '"' || ch === "'") {
+                inStr = ch;
+                buf += ch;
+                continue;
+            }
+            buf += ch;
+        }
+
+        let normalized = buf
+            .replace(/\bAND\b/gi, '&&')
+            .replace(/\bOR\b/gi, '||')
+            .replace(/\bNOT\b/gi, '!');
+
+        // Replace standalone '=' with '==' (skip >=, <=, ==, !=, =>)
+        let eqOut = '';
+        inStr = null;
+        for (let i = 0; i < normalized.length; i++) {
+            const ch = normalized[i];
+            if (inStr) {
+                eqOut += ch;
+                if (ch === '\\') {
+                    i++;
+                    if (i < normalized.length) eqOut += normalized[i];
+                    continue;
+                }
+                if (ch === inStr) inStr = null;
+                continue;
+            }
+            if (ch === '"' || ch === "'") {
+                inStr = ch;
+                eqOut += ch;
+                continue;
+            }
+            if (ch === '=') {
+                const prev = i > 0 ? normalized[i - 1] : '';
+                const next = i + 1 < normalized.length ? normalized[i + 1] : '';
+                if (prev === '=' || prev === '!' || prev === '<' || prev === '>' || next === '=' || next === '>') {
+                    eqOut += ch;
+                } else {
+                    eqOut += '==';
+                }
+                continue;
+            }
+            eqOut += ch;
+        }
+
+        return eqOut;
+    }
+
+    function evalPreviewExpression(expr, vars, t) {
+        const T = text => {
+            try {
+                return t ? t(text) : text;
+            } catch {
+                return text;
+            }
+        };
+
+        const src = normalizeFormulaForPreview(expr);
+
+        // State functions can't be safely previewed in-browser.
+        if (/\b(s|v|jp)\s*\(/.test(src)) {
+            throw new Error(T('Preview not supported for state functions'));
+        }
+
+        let i = 0;
+        const s = src;
+        const tokens = [];
+
+        const isSpace = c => c === ' ' || c === '\t' || c === '\n' || c === '\r';
+        const isDigit = c => c >= '0' && c <= '9';
+        const isIdStart = c => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_';
+        const isId = c => isIdStart(c) || isDigit(c);
+
+        const readString = quote => {
+            i++; // skip quote
+            let out = '';
+            while (i < s.length) {
+                const ch = s[i];
+                if (ch === '\\') {
+                    i++;
+                    if (i >= s.length) break;
+                    out += s[i];
+                    i++;
+                    continue;
+                }
+                if (ch === quote) {
+                    i++;
+                    return out;
+                }
+                out += ch;
+                i++;
+            }
+            throw new Error(T('Unterminated string'));
+        };
+
+        const readNumber = () => {
+            let start = i;
+            while (i < s.length && isDigit(s[i])) i++;
+            if (i < s.length && s[i] === '.') {
+                i++;
+                while (i < s.length && isDigit(s[i])) i++;
+            }
+            if (i < s.length && (s[i] === 'e' || s[i] === 'E')) {
+                i++;
+                if (i < s.length && (s[i] === '+' || s[i] === '-')) i++;
+                while (i < s.length && isDigit(s[i])) i++;
+            }
+            const raw = s.slice(start, i);
+            const n = Number(raw);
+            if (!Number.isFinite(n)) throw new Error(T('Invalid number'));
+            return n;
+        };
+
+        const readIdent = () => {
+            let start = i;
+            i++;
+            while (i < s.length && isId(s[i])) i++;
+            return s.slice(start, i);
+        };
+
+        const pushOp = op => tokens.push({ t: 'op', v: op });
+        const pushPunc = p => tokens.push({ t: p, v: p });
+
+        while (i < s.length) {
+            const ch = s[i];
+            if (isSpace(ch)) {
+                i++;
+                continue;
+            }
+            if (ch === '"' || ch === "'") {
+                tokens.push({ t: 'str', v: readString(ch) });
+                continue;
+            }
+            if (isDigit(ch) || (ch === '.' && i + 1 < s.length && isDigit(s[i + 1]))) {
+                tokens.push({ t: 'num', v: readNumber() });
+                continue;
+            }
+            if (isIdStart(ch)) {
+                const id = readIdent();
+                if (id === 'true') tokens.push({ t: 'bool', v: true });
+                else if (id === 'false') tokens.push({ t: 'bool', v: false });
+                else if (id === 'null') tokens.push({ t: 'null', v: null });
+                else tokens.push({ t: 'id', v: id });
+                continue;
+            }
+            // two-char ops
+            const two = s.slice(i, i + 2);
+            if (two === '&&' || two === '||' || two === '==' || two === '!=' || two === '>=' || two === '<=') {
+                pushOp(two);
+                i += 2;
+                continue;
+            }
+            // single-char
+            if (ch === '+' || ch === '-' || ch === '*' || ch === '/' || ch === '%' || ch === '!' || ch === '<' || ch === '>') {
+                pushOp(ch);
+                i++;
+                continue;
+            }
+            if (ch === '(' || ch === ')' || ch === ',' || ch === '?' || ch === ':') {
+                pushPunc(ch);
+                i++;
+                continue;
+            }
+            throw new Error(`${T('Unexpected character')}: ${ch}`);
+        }
+        tokens.push({ t: 'eof', v: '' });
+
+        let pos = 0;
+        const peek = () => tokens[pos];
+        const next = () => tokens[pos++];
+        const expect = tt => {
+            const tok = next();
+            if (!tok || tok.t !== tt) throw new Error(`${T('Expected')} ${tt}`);
+            return tok;
+        };
+
+        const fns = {
+            min: (a, b) => Math.min(Number(a), Number(b)),
+            max: (a, b) => Math.max(Number(a), Number(b)),
+            clamp: (value, min, max) => Math.min(Math.max(Number(value), Number(min)), Number(max)),
+            IF: (cond, vt, vf) => (cond ? vt : vf),
+        };
+
+        const lbp = op => {
+            if (op === '||') return 10;
+            if (op === '&&') return 20;
+            if (op === '==' || op === '!=') return 30;
+            if (op === '<' || op === '<=' || op === '>' || op === '>=') return 40;
+            if (op === '+' || op === '-') return 50;
+            if (op === '*' || op === '/' || op === '%') return 60;
+            return 0;
+        };
+
+        const parsePrimary = () => {
+            const tok = next();
+            if (!tok) throw new Error(T('Unexpected end'));
+            if (tok.t === 'num' || tok.t === 'str' || tok.t === 'bool' || tok.t === 'null') return tok.v;
+            if (tok.t === 'id') {
+                // function call?
+                if (peek().t === '(') {
+                    next();
+                    const args = [];
+                    if (peek().t !== ')') {
+                        while (true) {
+                            args.push(parseExpr(0));
+                            if (peek().t === ',') {
+                                next();
+                                continue;
+                            }
+                            break;
+                        }
+                    }
+                    expect(')');
+                    const fn = fns[tok.v];
+                    if (!fn) throw new Error(`${T('Unknown function')}: ${tok.v}`);
+                    return fn.apply(null, args);
+                }
+                return vars && Object.prototype.hasOwnProperty.call(vars, tok.v) ? vars[tok.v] : undefined;
+            }
+            if (tok.t === '(') {
+                const v = parseExpr(0);
+                expect(')');
+                return v;
+            }
+            if (tok.t === 'op' && (tok.v === '+' || tok.v === '-' || tok.v === '!')) {
+                const v = parseExpr(70);
+                if (tok.v === '+') return Number(v);
+                if (tok.v === '-') return -Number(v);
+                return !v;
+            }
+            throw new Error(`${T('Unexpected token')}: ${tok.t}`);
+        };
+
+        const applyOp = (op, a, b) => {
+            switch (op) {
+                case '+':
+                    return Number(a) + Number(b);
+                case '-':
+                    return Number(a) - Number(b);
+                case '*':
+                    return Number(a) * Number(b);
+                case '/':
+                    return Number(a) / Number(b);
+                case '%':
+                    return Number(a) % Number(b);
+                case '==':
+                    // eslint-disable-next-line eqeqeq
+                    return a == b;
+                case '!=':
+                    // eslint-disable-next-line eqeqeq
+                    return a != b;
+                case '<':
+                    return a < b;
+                case '<=':
+                    return a <= b;
+                case '>':
+                    return a > b;
+                case '>=':
+                    return a >= b;
+                case '&&':
+                    return a && b;
+                case '||':
+                    return a || b;
+                default:
+                    throw new Error(`${T('Unsupported operator')}: ${op}`);
+            }
+        };
+
+        const parseExpr = minBp => {
+            let left = parsePrimary();
+            while (true) {
+                const tok = peek();
+                if (!tok) break;
+                if (tok.t === '?') {
+                    if (minBp > 5) break;
+                    next();
+                    const tVal = parseExpr(0);
+                    expect(':');
+                    const fVal = parseExpr(0);
+                    left = left ? tVal : fVal;
+                    continue;
+                }
+                if (tok.t !== 'op') break;
+                const bp = lbp(tok.v);
+                if (bp < minBp) break;
+                next();
+                const right = parseExpr(bp + 1);
+                left = applyOp(tok.v, left, right);
+            }
+            return left;
+        };
+
+        const value = parseExpr(0);
+        if (peek().t !== 'eof') {
+            throw new Error(T('Unexpected token'));
+        }
+        return value;
+    }
+
     function createDataSolectrusItemsEditor(React, AdapterReact) {
         return function DataSolectrusItemsEditor(props) {
             const DEFAULT_ITEMS_ATTR = 'items';
@@ -571,363 +942,6 @@
                 return parts.join('|');
             })();
 
-            function stringifyCompact(value, maxLen = 70) {
-                if (value === null) return 'null';
-                if (value === undefined) return 'undefined';
-                let str;
-                try {
-                    if (typeof value === 'string') {
-                        str = value;
-                    } else if (typeof value === 'number' || typeof value === 'boolean') {
-                        str = String(value);
-                    } else {
-                        str = JSON.stringify(value);
-                    }
-                } catch {
-                    str = String(value);
-                }
-                str = String(str);
-                if (str.length <= maxLen) return str;
-                return str.slice(0, Math.max(0, maxLen - 1)) + '…';
-            }
-
-            const normalizeFormulaForPreview = expr => {
-                // Keep in sync (loosely) with adapter-side normalization, but only for preview.
-                // - AND/OR/NOT -> &&/||/! outside strings
-                // - single '=' -> '==' outside strings
-                let s = String(expr || '');
-                let out = '';
-                let inStr = null;
-                for (let i = 0; i < s.length; i++) {
-                    const ch = s[i];
-                    if (inStr) {
-                        out += ch;
-                        if (ch === '\\') {
-                            // skip escaped char
-                            i++;
-                            if (i < s.length) out += s[i];
-                            continue;
-                        }
-                        if (ch === inStr) inStr = null;
-                        continue;
-                    }
-                    if (ch === '"' || ch === "'") {
-                        inStr = ch;
-                        out += ch;
-                        continue;
-                    }
-                    out += ch;
-                }
-
-                // Replace logical words outside strings by splitting again.
-                // This is conservative (word boundaries) and good enough for preview.
-                const parts = [];
-                inStr = null;
-                let buf = '';
-                for (let i = 0; i < out.length; i++) {
-                    const ch = out[i];
-                    if (inStr) {
-                        buf += ch;
-                        if (ch === '\\') {
-                            i++;
-                            if (i < out.length) buf += out[i];
-                            continue;
-                        }
-                        if (ch === inStr) inStr = null;
-                        continue;
-                    }
-                    if (ch === '"' || ch === "'") {
-                        inStr = ch;
-                        buf += ch;
-                        continue;
-                    }
-                    buf += ch;
-                }
-
-                let normalized = buf
-                    .replace(/\bAND\b/gi, '&&')
-                    .replace(/\bOR\b/gi, '||')
-                    .replace(/\bNOT\b/gi, '!');
-
-                // Replace standalone '=' with '==' (skip >=, <=, ==, !=, =>)
-                let eqOut = '';
-                inStr = null;
-                for (let i = 0; i < normalized.length; i++) {
-                    const ch = normalized[i];
-                    if (inStr) {
-                        eqOut += ch;
-                        if (ch === '\\') {
-                            i++;
-                            if (i < normalized.length) eqOut += normalized[i];
-                            continue;
-                        }
-                        if (ch === inStr) inStr = null;
-                        continue;
-                    }
-                    if (ch === '"' || ch === "'") {
-                        inStr = ch;
-                        eqOut += ch;
-                        continue;
-                    }
-                    if (ch === '=') {
-                        const prev = i > 0 ? normalized[i - 1] : '';
-                        const next = i + 1 < normalized.length ? normalized[i + 1] : '';
-                        if (prev === '=' || prev === '!' || prev === '<' || prev === '>' || next === '=' || next === '>') {
-                            eqOut += ch;
-                        } else {
-                            eqOut += '==';
-                        }
-                        continue;
-                    }
-                    eqOut += ch;
-                }
-
-                return eqOut;
-            };
-
-            const evalPreviewExpression = (expr, vars) => {
-                const src = normalizeFormulaForPreview(expr);
-
-                // State functions can't be safely previewed in-browser.
-                if (/\b(s|v|jp)\s*\(/.test(src)) {
-                    throw new Error(t('Preview not supported for state functions'));
-                }
-
-                let i = 0;
-                const s = src;
-                const tokens = [];
-
-                const isSpace = c => c === ' ' || c === '\t' || c === '\n' || c === '\r';
-                const isDigit = c => c >= '0' && c <= '9';
-                const isIdStart = c => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_';
-                const isId = c => isIdStart(c) || isDigit(c);
-
-                const readString = quote => {
-                    i++; // skip quote
-                    let out = '';
-                    while (i < s.length) {
-                        const ch = s[i];
-                        if (ch === '\\') {
-                            i++;
-                            if (i >= s.length) break;
-                            out += s[i];
-                            i++;
-                            continue;
-                        }
-                        if (ch === quote) {
-                            i++;
-                            return out;
-                        }
-                        out += ch;
-                        i++;
-                    }
-                    throw new Error(t('Unterminated string'));
-                };
-
-                const readNumber = () => {
-                    let start = i;
-                    while (i < s.length && isDigit(s[i])) i++;
-                    if (i < s.length && s[i] === '.') {
-                        i++;
-                        while (i < s.length && isDigit(s[i])) i++;
-                    }
-                    if (i < s.length && (s[i] === 'e' || s[i] === 'E')) {
-                        i++;
-                        if (i < s.length && (s[i] === '+' || s[i] === '-')) i++;
-                        while (i < s.length && isDigit(s[i])) i++;
-                    }
-                    const raw = s.slice(start, i);
-                    const n = Number(raw);
-                    if (!Number.isFinite(n)) throw new Error(t('Invalid number'));
-                    return n;
-                };
-
-                const readIdent = () => {
-                    let start = i;
-                    i++;
-                    while (i < s.length && isId(s[i])) i++;
-                    return s.slice(start, i);
-                };
-
-                const pushOp = op => tokens.push({ t: 'op', v: op });
-                const pushPunc = p => tokens.push({ t: p, v: p });
-
-                while (i < s.length) {
-                    const ch = s[i];
-                    if (isSpace(ch)) {
-                        i++;
-                        continue;
-                    }
-                    if (ch === '"' || ch === "'") {
-                        tokens.push({ t: 'str', v: readString(ch) });
-                        continue;
-                    }
-                    if (isDigit(ch) || (ch === '.' && i + 1 < s.length && isDigit(s[i + 1]))) {
-                        tokens.push({ t: 'num', v: readNumber() });
-                        continue;
-                    }
-                    if (isIdStart(ch)) {
-                        const id = readIdent();
-                        if (id === 'true') tokens.push({ t: 'bool', v: true });
-                        else if (id === 'false') tokens.push({ t: 'bool', v: false });
-                        else if (id === 'null') tokens.push({ t: 'null', v: null });
-                        else tokens.push({ t: 'id', v: id });
-                        continue;
-                    }
-                    // two-char ops
-                    const two = s.slice(i, i + 2);
-                    if (two === '&&' || two === '||' || two === '==' || two === '!=' || two === '>=' || two === '<=') {
-                        pushOp(two);
-                        i += 2;
-                        continue;
-                    }
-                    // single-char
-                    if (ch === '+' || ch === '-' || ch === '*' || ch === '/' || ch === '%' || ch === '!' || ch === '<' || ch === '>') {
-                        pushOp(ch);
-                        i++;
-                        continue;
-                    }
-                    if (ch === '(' || ch === ')' || ch === ',' || ch === '?' || ch === ':') {
-                        pushPunc(ch);
-                        i++;
-                        continue;
-                    }
-                    throw new Error(`${t('Unexpected character')}: ${ch}`);
-                }
-                tokens.push({ t: 'eof', v: '' });
-
-                let pos = 0;
-                const peek = () => tokens[pos];
-                const next = () => tokens[pos++];
-                const expect = tt => {
-                    const tok = next();
-                    if (!tok || tok.t !== tt) throw new Error(`${t('Expected')} ${tt}`);
-                    return tok;
-                };
-
-                const fns = {
-                    min: (a, b) => Math.min(Number(a), Number(b)),
-                    max: (a, b) => Math.max(Number(a), Number(b)),
-                    clamp: (value, min, max) => Math.min(Math.max(Number(value), Number(min)), Number(max)),
-                    IF: (cond, vt, vf) => (cond ? vt : vf),
-                };
-
-                const lbp = op => {
-                    if (op === '||') return 10;
-                    if (op === '&&') return 20;
-                    if (op === '==' || op === '!=') return 30;
-                    if (op === '<' || op === '<=' || op === '>' || op === '>=') return 40;
-                    if (op === '+' || op === '-') return 50;
-                    if (op === '*' || op === '/' || op === '%') return 60;
-                    return 0;
-                };
-
-                const parsePrimary = () => {
-                    const tok = next();
-                    if (!tok) throw new Error(t('Unexpected end'));
-                    if (tok.t === 'num' || tok.t === 'str' || tok.t === 'bool' || tok.t === 'null') return tok.v;
-                    if (tok.t === 'id') {
-                        // function call?
-                        if (peek().t === '(') {
-                            next();
-                            const args = [];
-                            if (peek().t !== ')') {
-                                while (true) {
-                                    args.push(parseExpr(0));
-                                    if (peek().t === ',') {
-                                        next();
-                                        continue;
-                                    }
-                                    break;
-                                }
-                            }
-                            expect(')');
-                            const fn = fns[tok.v];
-                            if (!fn) throw new Error(`${t('Unknown function')}: ${tok.v}`);
-                            return fn.apply(null, args);
-                        }
-                        return vars && Object.prototype.hasOwnProperty.call(vars, tok.v) ? vars[tok.v] : undefined;
-                    }
-                    if (tok.t === '(') {
-                        const v = parseExpr(0);
-                        expect(')');
-                        return v;
-                    }
-                    if (tok.t === 'op' && (tok.v === '+' || tok.v === '-' || tok.v === '!')) {
-                        const v = parseExpr(70);
-                        if (tok.v === '+') return Number(v);
-                        if (tok.v === '-') return -Number(v);
-                        return !v;
-                    }
-                    throw new Error(`${t('Unexpected token')}: ${tok.t}`);
-                };
-
-                const applyOp = (op, a, b) => {
-                    switch (op) {
-                        case '+':
-                            return Number(a) + Number(b);
-                        case '-':
-                            return Number(a) - Number(b);
-                        case '*':
-                            return Number(a) * Number(b);
-                        case '/':
-                            return Number(a) / Number(b);
-                        case '%':
-                            return Number(a) % Number(b);
-                        case '==':
-                            // eslint-disable-next-line eqeqeq
-                            return a == b;
-                        case '!=':
-                            // eslint-disable-next-line eqeqeq
-                            return a != b;
-                        case '<':
-                            return a < b;
-                        case '<=':
-                            return a <= b;
-                        case '>':
-                            return a > b;
-                        case '>=':
-                            return a >= b;
-                        case '&&':
-                            return a && b;
-                        case '||':
-                            return a || b;
-                        default:
-                            throw new Error(`${t('Unsupported operator')}: ${op}`);
-                    }
-                };
-
-                const parseExpr = minBp => {
-                    let left = parsePrimary();
-                    while (true) {
-                        const tok = peek();
-                        if (!tok) break;
-                        if (tok.t === '?') {
-                            if (minBp > 5) break;
-                            next();
-                            const tVal = parseExpr(0);
-                            expect(':');
-                            const fVal = parseExpr(0);
-                            left = left ? tVal : fVal;
-                            continue;
-                        }
-                        if (tok.t !== 'op') break;
-                        const bp = lbp(tok.v);
-                        if (bp < minBp) break;
-                        next();
-                        const right = parseExpr(bp + 1);
-                        left = applyOp(tok.v, left, right);
-                    }
-                    return left;
-                };
-
-                const value = parseExpr(0);
-                if (peek().t !== 'eof') {
-                    throw new Error(t('Unexpected token'));
-                }
-                return value;
-            };
-
             const getAdapterInstanceId = () => {
                 const adapterName = (props && (props.adapterName || props.adapter)) || 'data-solectrus';
                 const instanceId = props && typeof props.instanceId === 'string' ? props.instanceId : '';
@@ -951,13 +965,6 @@
                 const base = getAdapterInstanceId();
                 if (!base) return '';
                 return String(base).startsWith('system.adapter.') ? `${base}.alive` : `system.adapter.${base}.alive`;
-            };
-
-            const sanitizeInputKey = raw => {
-                const keyRaw = raw ? String(raw).trim() : '';
-                const key = keyRaw.replace(/[^a-zA-Z0-9_]/g, '_');
-                if (key === '__proto__' || key === 'prototype' || key === 'constructor') return '';
-                return key;
             };
 
             const openFormulaBuilder = () => {
@@ -1049,7 +1056,7 @@
                     setFormulaPreviewLoading(true);
                 }
                 try {
-                    const val = evalPreviewExpression(String(formulaDraft || ''), vars);
+                    const val = evalPreviewExpression(String(formulaDraft || ''), vars, t);
                     setFormulaPreview({ ok: true, value: val });
                     if (reason && props && props.onDebug) {
                         try {
