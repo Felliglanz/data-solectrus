@@ -20,6 +20,7 @@
   },
   "scripts": {
     "start": "node main.js",
-	"lint": "node -c main.js && node -c lib/formula.js && node -c lib/jsonpath.js"
+	"lint": "node scripts/lint-syntax.js",
+	"smoke": "node scripts/smoke-runtime.js"
   }
 }
