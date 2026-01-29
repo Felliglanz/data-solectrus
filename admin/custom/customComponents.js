@@ -408,6 +408,9 @@
 			const [formulaBuilderOpen, setFormulaBuilderOpen] = React.useState(false);
 			const [formulaDraft, setFormulaDraft] = React.useState('');
 			const formulaEditorRef = React.useRef(null);
+            const [formulaLiveValues, setFormulaLiveValues] = React.useState({});
+            const [formulaLiveTs, setFormulaLiveTs] = React.useState({});
+            const [formulaLiveLoading, setFormulaLiveLoading] = React.useState(false);
 
             React.useEffect(() => {
                 const onDocMouseDown = e => {
@@ -547,6 +550,31 @@
             };
 
             const selectedItem = items[selectedIndex] || null;
+            const formulaLiveSignature = (() => {
+                if (!formulaBuilderOpen || !selectedItem) return '';
+                const inputs = Array.isArray(selectedItem.inputs) ? selectedItem.inputs : [];
+                return inputs.map(inp => (inp && inp.sourceState ? String(inp.sourceState) : '')).join('|');
+            })();
+
+            const stringifyCompact = (value, maxLen = 70) => {
+                if (value === null) return 'null';
+                if (value === undefined) return 'undefined';
+                let str;
+                try {
+                    if (typeof value === 'string') {
+                        str = value;
+                    } else if (typeof value === 'number' || typeof value === 'boolean') {
+                        str = String(value);
+                    } else {
+                        str = JSON.stringify(value);
+                    }
+                } catch {
+                    str = String(value);
+                }
+                str = String(str);
+                if (str.length <= maxLen) return str;
+                return str.slice(0, Math.max(0, maxLen - 1)) + '…';
+            };
 
             const sanitizeInputKey = raw => {
                 const keyRaw = raw ? String(raw).trim() : '';
@@ -570,6 +598,86 @@
                     // ignore
                 }
             };
+
+            const refreshFormulaLiveValues = async opts => {
+                const reason = opts && opts.reason ? String(opts.reason) : '';
+                if (!formulaBuilderOpen) return;
+                if (!selectedItem) return;
+                if (!socket || typeof socket.getState !== 'function') return;
+
+                const inputs = Array.isArray(selectedItem.inputs) ? selectedItem.inputs : [];
+                const ids = inputs
+                    .map(inp => (inp && inp.sourceState ? String(inp.sourceState) : ''))
+                    .filter(Boolean);
+                const uniqueIds = Array.from(new Set(ids));
+                if (!uniqueIds.length) {
+                    setFormulaLiveValues({});
+                    setFormulaLiveTs({});
+                    return;
+                }
+
+                setFormulaLiveLoading(true);
+                try {
+                    const results = await Promise.all(
+                        uniqueIds.map(async id => {
+                            try {
+                                const st = await socket.getState(id);
+                                return { id, st: st || null };
+                            } catch {
+                                return { id, st: null };
+                            }
+                        })
+                    );
+                    const nextVals = {};
+                    const nextTs = {};
+                    for (const r of results) {
+                        nextVals[r.id] = r.st ? r.st.val : undefined;
+                        nextTs[r.id] = r.st && typeof r.st.ts === 'number' ? r.st.ts : undefined;
+                    }
+                    setFormulaLiveValues(nextVals);
+                    setFormulaLiveTs(nextTs);
+                    if (reason && props && props.onDebug) {
+                        try {
+                            props.onDebug('formulaLiveValues', { reason, count: uniqueIds.length });
+                        } catch {
+                            // ignore
+                        }
+                    }
+                } finally {
+                    setFormulaLiveLoading(false);
+                }
+            };
+
+            React.useEffect(() => {
+                if (!formulaBuilderOpen) return;
+                let alive = true;
+                let timer = null;
+
+                const run = async () => {
+                    if (!alive) return;
+                    await refreshFormulaLiveValues({ reason: 'auto' });
+                };
+
+                run();
+                try {
+                    timer = setInterval(() => {
+                        run();
+                    }, 2000);
+                } catch {
+                    // ignore
+                }
+
+                return () => {
+                    alive = false;
+                    if (timer) {
+                        try {
+                            clearInterval(timer);
+                        } catch {
+                            // ignore
+                        }
+                    }
+                };
+            }, [formulaBuilderOpen, selectedIndex, formulaLiveSignature]);
 
             const insertIntoFormulaDraft = opts => {
                 const text = opts && opts.text !== undefined ? String(opts.text) : '';
@@ -996,6 +1104,18 @@
                     cursor: 'not-allowed',
                 });
 
+                const valuePillStyle = {
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '4px 8px',
+                    borderRadius: 999,
+                    border: `1px solid ${colors.border}`,
+                    background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                    color: colors.textMuted,
+                    fontSize: 12,
+                    maxWidth: '100%',
+                };
+
                 const vars = Array.isArray(selectedItem.inputs)
                     ? selectedItem.inputs
                         .map(inp => {
@@ -1044,12 +1164,36 @@
                                 'div',
                                 { style: modalLeftStyle },
                                 React.createElement('div', { style: sectionTitleStyle }, t('Variables (Inputs)')),
+                            React.createElement(
+                                'div',
+                                { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 } },
+                                React.createElement('div', { style: { fontSize: 12, color: colors.textMuted } }, t('Live values')),
+                                React.createElement(
+                                    'button',
+                                    {
+                                        type: 'button',
+                                        style: Object.assign({}, btnStyle, { padding: '5px 9px', fontSize: 12 }),
+                                        disabled: formulaLiveLoading || !(socket && typeof socket.getState === 'function'),
+                                        onClick: () => refreshFormulaLiveValues({ reason: 'manual' }),
+                                        title: t('Refresh'),
+                                    },
+                                    formulaLiveLoading ? t('Loading…') : t('Refresh')
+                                )
+                            ),
                                 vars.length
                                     ? vars.map((v, idx) => {
                                             const title = v.sourceState ? `${v.rawKey} ← ${v.sourceState}` : v.rawKey;
+                                            const liveId = v.sourceState;
+                                            const liveVal = liveId ? formulaLiveValues[liveId] : undefined;
+                                            const liveTs = liveId ? formulaLiveTs[liveId] : undefined;
+                                            const liveText = liveId
+                                                ? liveVal === undefined
+                                                    ? t('n/a')
+                                                    : stringifyCompact(liveVal)
+                                                : t('n/a');
                                             return React.createElement(
                                                 'div',
-                                                { key: `${v.key}|${idx}`, style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 } },
+                                                { key: `${v.key}|${idx}`, style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8, alignItems: 'center' } },
                                                 React.createElement(
                                                     'button',
                                                     { type: 'button', style: chipBtnStyle, onClick: () => insertIntoFormulaDraft({ text: v.key }), title },
@@ -1057,7 +1201,17 @@
                                                     v.rawKey && v.rawKey !== v.key
                                                         ? React.createElement('span', { style: { fontSize: 11, opacity: 0.75 } }, `(${v.rawKey})`)
                                                         : null
+                                                ),
+                                            v.sourceState
+                                                ? React.createElement(
+                                                    'span',
+                                                    {
+                                                        style: valuePillStyle,
+                                                    title: liveTs ? `${liveText} @ ${new Date(liveTs).toLocaleString()}` : liveText,
+                                                },
+                                                    liveText
                                                 )
+                                                : null
                                             );
                                         })
                                     : React.createElement('div', { style: { fontSize: 12, color: colors.textMuted } }, t('No inputs configured yet.')),
