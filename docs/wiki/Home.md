@@ -2,6 +2,8 @@
 
 Willkommen im Wiki des ioBroker-Adapters **data-solectrus**.
 
+Neu: Der [[Formula-Builder]] hilft dir beim Erstellen von Formeln direkt im Admin-UI.
+
 Der Adapter ist ein „Daten-Preprozessor“: Er liest vorhandene ioBroker-States, **berechnet** daraus neue Werte (oder spiegelt Werte 1:1) und schreibt das Ergebnis als eigene States unter `data-solectrus.0.*`.
 
 ## Was kann der Adapter?

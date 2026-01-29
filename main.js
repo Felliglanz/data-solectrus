@@ -58,6 +58,72 @@ class DataSolectrus extends utils.Adapter {
 		this.on('ready', this.onReady.bind(this));
 		this.on('unload', this.onUnload.bind(this));
 		this.on('stateChange', this.onStateChange.bind(this));
+		this.on('message', this.onMessage.bind(this));
+	}
+
+	onMessage(obj) {
+		try {
+			if (!obj || !obj.command) return;
+			if (obj.command !== 'evalFormulaPreview') return;
+
+			const msg = obj.message && typeof obj.message === 'object' ? obj.message : {};
+			const expr = msg && msg.expr !== undefined ? String(msg.expr) : '';
+			const varsIn = msg && msg.vars && typeof msg.vars === 'object' ? msg.vars : {};
+
+			const safeVars = Object.create(null);
+			let keys = [];
+			try {
+				keys = Object.keys(varsIn);
+			} catch {
+				keys = [];
+			}
+
+			// Keep previews cheap and robust.
+			const MAX_PREVIEW_VARS = 200;
+			for (let i = 0; i < keys.length && i < MAX_PREVIEW_VARS; i++) {
+				const kRaw = keys[i];
+				const k = String(kRaw);
+				if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k)) continue;
+				if (k === '__proto__' || k === 'prototype' || k === 'constructor') continue;
+
+				const v = varsIn[kRaw];
+				if (typeof v === 'string') {
+					safeVars[k] = v.length > 2000 ? v.slice(0, 2000) : v;
+					continue;
+				}
+				if (typeof v === 'number' || typeof v === 'boolean' || v === null || v === undefined) {
+					safeVars[k] = v;
+					continue;
+				}
+				// For objects/arrays, only allow reasonably-sized JSON.
+				try {
+					const json = JSON.stringify(v);
+					if (json && json.length <= 5000) {
+						safeVars[k] = v;
+					}
+				} catch {
+					// ignore
+				}
+			}
+
+			let result;
+			try {
+				result = this.evalFormula(expr, safeVars);
+			} catch (e) {
+				const err = e && e.message ? String(e.message) : String(e);
+				if (obj.callback) this.sendTo(obj.from, obj.command, { ok: false, error: err }, obj.callback);
+				return;
+			}
+
+			if (obj.callback) this.sendTo(obj.from, obj.command, { ok: true, value: result }, obj.callback);
+		} catch (e) {
+			try {
+				const err = e && e.message ? String(e.message) : String(e);
+				if (obj && obj.callback) this.sendTo(obj.from, obj.command, { ok: false, error: err }, obj.callback);
+			} catch {
+				// ignore
+			}
+		}
 	}
 
 	safeNum(val, fallback = 0) {

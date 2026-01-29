@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.6 - 2026-01-29
+
+### Added
+
+- Admin UI: Formula Builder popup for building formulas with a palette (operators/functions/state pickers).
+- Admin UI: Live input values inside the builder (polling while popup is open).
+- Admin UI: Local in-browser formula preview pill (updates automatically while popup is open).
+
+### Fixed
+
+- Admin UI: Builder crash on open (runtime error in custom UI script).
+
 ## 0.2.5 - 2026-01-29
 
 ### Changed

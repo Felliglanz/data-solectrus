@@ -405,6 +405,16 @@
             const [selectContext, setSelectContext] = React.useState(null);
             const [openDropdown, setOpenDropdown] = React.useState(null);
 
+			const [formulaBuilderOpen, setFormulaBuilderOpen] = React.useState(false);
+			const [formulaDraft, setFormulaDraft] = React.useState('');
+			const formulaEditorRef = React.useRef(null);
+            const [formulaLiveValues, setFormulaLiveValues] = React.useState({});
+            const [formulaLiveTs, setFormulaLiveTs] = React.useState({});
+            const [formulaLivePollNonce, setFormulaLivePollNonce] = React.useState(0);
+            const [formulaLiveLoading, setFormulaLiveLoading] = React.useState(false);
+            const [formulaPreview, setFormulaPreview] = React.useState(null);
+            const [formulaPreviewLoading, setFormulaPreviewLoading] = React.useState(false);
+
             React.useEffect(() => {
                 const onDocMouseDown = e => {
                     if (!openDropdown) return;
@@ -439,6 +449,27 @@
                     setSelectedIndex(Math.max(0, items.length - 1));
                 }
             }, [items.length, selectedIndex]);
+
+            React.useEffect(() => {
+                if (!formulaBuilderOpen) return;
+                const onKeyDown = e => {
+                    if (e && e.key === 'Escape') {
+                        setFormulaBuilderOpen(false);
+                    }
+                };
+                try {
+                    globalThis.document && globalThis.document.addEventListener('keydown', onKeyDown);
+                } catch {
+                    // ignore
+                }
+                return () => {
+                    try {
+                        globalThis.document && globalThis.document.removeEventListener('keydown', onKeyDown);
+                    } catch {
+                        // ignore
+                    }
+                };
+            }, [formulaBuilderOpen]);
 
             const setByPath = (rootObj, path, value) => {
                 if (!path) {
@@ -522,6 +553,604 @@
             };
 
             const selectedItem = items[selectedIndex] || null;
+            const formulaInputSignature = (() => {
+                if (!formulaBuilderOpen || !selectedItem) return '';
+                const inputs = Array.isArray(selectedItem.inputs) ? selectedItem.inputs : [];
+                return inputs.map(inp => (inp && inp.sourceState ? String(inp.sourceState) : '')).filter(Boolean).join('|');
+            })();
+
+            const formulaLiveSignature = (() => {
+                if (!formulaBuilderOpen || !selectedItem) return '';
+                const ids = formulaInputSignature ? String(formulaInputSignature).split('|').filter(Boolean) : [];
+                const parts = ids.map(id => {
+                    const ts = formulaLiveTs && Object.prototype.hasOwnProperty.call(formulaLiveTs, id) ? formulaLiveTs[id] : undefined;
+                    const val = formulaLiveValues && Object.prototype.hasOwnProperty.call(formulaLiveValues, id) ? formulaLiveValues[id] : undefined;
+                    return `${id}:${ts === undefined ? '' : String(ts)}:${stringifyCompact(val, 30)}`;
+                });
+                parts.push(`_poll:${String(formulaLivePollNonce || 0)}`);
+                return parts.join('|');
+            })();
+
+            function stringifyCompact(value, maxLen = 70) {
+                if (value === null) return 'null';
+                if (value === undefined) return 'undefined';
+                let str;
+                try {
+                    if (typeof value === 'string') {
+                        str = value;
+                    } else if (typeof value === 'number' || typeof value === 'boolean') {
+                        str = String(value);
+                    } else {
+                        str = JSON.stringify(value);
+                    }
+                } catch {
+                    str = String(value);
+                }
+                str = String(str);
+                if (str.length <= maxLen) return str;
+                return str.slice(0, Math.max(0, maxLen - 1)) + '…';
+            }
+
+            const normalizeFormulaForPreview = expr => {
+                // Keep in sync (loosely) with adapter-side normalization, but only for preview.
+                // - AND/OR/NOT -> &&/||/! outside strings
+                // - single '=' -> '==' outside strings
+                let s = String(expr || '');
+                let out = '';
+                let inStr = null;
+                for (let i = 0; i < s.length; i++) {
+                    const ch = s[i];
+                    if (inStr) {
+                        out += ch;
+                        if (ch === '\\') {
+                            // skip escaped char
+                            i++;
+                            if (i < s.length) out += s[i];
+                            continue;
+                        }
+                        if (ch === inStr) inStr = null;
+                        continue;
+                    }
+                    if (ch === '"' || ch === "'") {
+                        inStr = ch;
+                        out += ch;
+                        continue;
+                    }
+                    out += ch;
+                }
+
+                // Replace logical words outside strings by splitting again.
+                // This is conservative (word boundaries) and good enough for preview.
+                const parts = [];
+                inStr = null;
+                let buf = '';
+                for (let i = 0; i < out.length; i++) {
+                    const ch = out[i];
+                    if (inStr) {
+                        buf += ch;
+                        if (ch === '\\') {
+                            i++;
+                            if (i < out.length) buf += out[i];
+                            continue;
+                        }
+                        if (ch === inStr) inStr = null;
+                        continue;
+                    }
+                    if (ch === '"' || ch === "'") {
+                        inStr = ch;
+                        buf += ch;
+                        continue;
+                    }
+                    buf += ch;
+                }
+
+                let normalized = buf
+                    .replace(/\bAND\b/gi, '&&')
+                    .replace(/\bOR\b/gi, '||')
+                    .replace(/\bNOT\b/gi, '!');
+
+                // Replace standalone '=' with '==' (skip >=, <=, ==, !=, =>)
+                let eqOut = '';
+                inStr = null;
+                for (let i = 0; i < normalized.length; i++) {
+                    const ch = normalized[i];
+                    if (inStr) {
+                        eqOut += ch;
+                        if (ch === '\\') {
+                            i++;
+                            if (i < normalized.length) eqOut += normalized[i];
+                            continue;
+                        }
+                        if (ch === inStr) inStr = null;
+                        continue;
+                    }
+                    if (ch === '"' || ch === "'") {
+                        inStr = ch;
+                        eqOut += ch;
+                        continue;
+                    }
+                    if (ch === '=') {
+                        const prev = i > 0 ? normalized[i - 1] : '';
+                        const next = i + 1 < normalized.length ? normalized[i + 1] : '';
+                        if (prev === '=' || prev === '!' || prev === '<' || prev === '>' || next === '=' || next === '>') {
+                            eqOut += ch;
+                        } else {
+                            eqOut += '==';
+                        }
+                        continue;
+                    }
+                    eqOut += ch;
+                }
+
+                return eqOut;
+            };
+
+            const evalPreviewExpression = (expr, vars) => {
+                const src = normalizeFormulaForPreview(expr);
+
+                // State functions can't be safely previewed in-browser.
+                if (/\b(s|v|jp)\s*\(/.test(src)) {
+                    throw new Error(t('Preview not supported for state functions'));
+                }
+
+                let i = 0;
+                const s = src;
+                const tokens = [];
+
+                const isSpace = c => c === ' ' || c === '\t' || c === '\n' || c === '\r';
+                const isDigit = c => c >= '0' && c <= '9';
+                const isIdStart = c => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_';
+                const isId = c => isIdStart(c) || isDigit(c);
+
+                const readString = quote => {
+                    i++; // skip quote
+                    let out = '';
+                    while (i < s.length) {
+                        const ch = s[i];
+                        if (ch === '\\') {
+                            i++;
+                            if (i >= s.length) break;
+                            out += s[i];
+                            i++;
+                            continue;
+                        }
+                        if (ch === quote) {
+                            i++;
+                            return out;
+                        }
+                        out += ch;
+                        i++;
+                    }
+                    throw new Error(t('Unterminated string'));
+                };
+
+                const readNumber = () => {
+                    let start = i;
+                    while (i < s.length && isDigit(s[i])) i++;
+                    if (i < s.length && s[i] === '.') {
+                        i++;
+                        while (i < s.length && isDigit(s[i])) i++;
+                    }
+                    if (i < s.length && (s[i] === 'e' || s[i] === 'E')) {
+                        i++;
+                        if (i < s.length && (s[i] === '+' || s[i] === '-')) i++;
+                        while (i < s.length && isDigit(s[i])) i++;
+                    }
+                    const raw = s.slice(start, i);
+                    const n = Number(raw);
+                    if (!Number.isFinite(n)) throw new Error(t('Invalid number'));
+                    return n;
+                };
+
+                const readIdent = () => {
+                    let start = i;
+                    i++;
+                    while (i < s.length && isId(s[i])) i++;
+                    return s.slice(start, i);
+                };
+
+                const pushOp = op => tokens.push({ t: 'op', v: op });
+                const pushPunc = p => tokens.push({ t: p, v: p });
+
+                while (i < s.length) {
+                    const ch = s[i];
+                    if (isSpace(ch)) {
+                        i++;
+                        continue;
+                    }
+                    if (ch === '"' || ch === "'") {
+                        tokens.push({ t: 'str', v: readString(ch) });
+                        continue;
+                    }
+                    if (isDigit(ch) || (ch === '.' && i + 1 < s.length && isDigit(s[i + 1]))) {
+                        tokens.push({ t: 'num', v: readNumber() });
+                        continue;
+                    }
+                    if (isIdStart(ch)) {
+                        const id = readIdent();
+                        if (id === 'true') tokens.push({ t: 'bool', v: true });
+                        else if (id === 'false') tokens.push({ t: 'bool', v: false });
+                        else if (id === 'null') tokens.push({ t: 'null', v: null });
+                        else tokens.push({ t: 'id', v: id });
+                        continue;
+                    }
+                    // two-char ops
+                    const two = s.slice(i, i + 2);
+                    if (two === '&&' || two === '||' || two === '==' || two === '!=' || two === '>=' || two === '<=') {
+                        pushOp(two);
+                        i += 2;
+                        continue;
+                    }
+                    // single-char
+                    if (ch === '+' || ch === '-' || ch === '*' || ch === '/' || ch === '%' || ch === '!' || ch === '<' || ch === '>') {
+                        pushOp(ch);
+                        i++;
+                        continue;
+                    }
+                    if (ch === '(' || ch === ')' || ch === ',' || ch === '?' || ch === ':') {
+                        pushPunc(ch);
+                        i++;
+                        continue;
+                    }
+                    throw new Error(`${t('Unexpected character')}: ${ch}`);
+                }
+                tokens.push({ t: 'eof', v: '' });
+
+                let pos = 0;
+                const peek = () => tokens[pos];
+                const next = () => tokens[pos++];
+                const expect = tt => {
+                    const tok = next();
+                    if (!tok || tok.t !== tt) throw new Error(`${t('Expected')} ${tt}`);
+                    return tok;
+                };
+
+                const fns = {
+                    min: (a, b) => Math.min(Number(a), Number(b)),
+                    max: (a, b) => Math.max(Number(a), Number(b)),
+                    clamp: (value, min, max) => Math.min(Math.max(Number(value), Number(min)), Number(max)),
+                    IF: (cond, vt, vf) => (cond ? vt : vf),
+                };
+
+                const lbp = op => {
+                    if (op === '||') return 10;
+                    if (op === '&&') return 20;
+                    if (op === '==' || op === '!=') return 30;
+                    if (op === '<' || op === '<=' || op === '>' || op === '>=') return 40;
+                    if (op === '+' || op === '-') return 50;
+                    if (op === '*' || op === '/' || op === '%') return 60;
+                    return 0;
+                };
+
+                const parsePrimary = () => {
+                    const tok = next();
+                    if (!tok) throw new Error(t('Unexpected end'));
+                    if (tok.t === 'num' || tok.t === 'str' || tok.t === 'bool' || tok.t === 'null') return tok.v;
+                    if (tok.t === 'id') {
+                        // function call?
+                        if (peek().t === '(') {
+                            next();
+                            const args = [];
+                            if (peek().t !== ')') {
+                                while (true) {
+                                    args.push(parseExpr(0));
+                                    if (peek().t === ',') {
+                                        next();
+                                        continue;
+                                    }
+                                    break;
+                                }
+                            }
+                            expect(')');
+                            const fn = fns[tok.v];
+                            if (!fn) throw new Error(`${t('Unknown function')}: ${tok.v}`);
+                            return fn.apply(null, args);
+                        }
+                        return vars && Object.prototype.hasOwnProperty.call(vars, tok.v) ? vars[tok.v] : undefined;
+                    }
+                    if (tok.t === '(') {
+                        const v = parseExpr(0);
+                        expect(')');
+                        return v;
+                    }
+                    if (tok.t === 'op' && (tok.v === '+' || tok.v === '-' || tok.v === '!')) {
+                        const v = parseExpr(70);
+                        if (tok.v === '+') return Number(v);
+                        if (tok.v === '-') return -Number(v);
+                        return !v;
+                    }
+                    throw new Error(`${t('Unexpected token')}: ${tok.t}`);
+                };
+
+                const applyOp = (op, a, b) => {
+                    switch (op) {
+                        case '+':
+                            return Number(a) + Number(b);
+                        case '-':
+                            return Number(a) - Number(b);
+                        case '*':
+                            return Number(a) * Number(b);
+                        case '/':
+                            return Number(a) / Number(b);
+                        case '%':
+                            return Number(a) % Number(b);
+                        case '==':
+                            // eslint-disable-next-line eqeqeq
+                            return a == b;
+                        case '!=':
+                            // eslint-disable-next-line eqeqeq
+                            return a != b;
+                        case '<':
+                            return a < b;
+                        case '<=':
+                            return a <= b;
+                        case '>':
+                            return a > b;
+                        case '>=':
+                            return a >= b;
+                        case '&&':
+                            return a && b;
+                        case '||':
+                            return a || b;
+                        default:
+                            throw new Error(`${t('Unsupported operator')}: ${op}`);
+                    }
+                };
+
+                const parseExpr = minBp => {
+                    let left = parsePrimary();
+                    while (true) {
+                        const tok = peek();
+                        if (!tok) break;
+                        if (tok.t === '?') {
+                            if (minBp > 5) break;
+                            next();
+                            const tVal = parseExpr(0);
+                            expect(':');
+                            const fVal = parseExpr(0);
+                            left = left ? tVal : fVal;
+                            continue;
+                        }
+                        if (tok.t !== 'op') break;
+                        const bp = lbp(tok.v);
+                        if (bp < minBp) break;
+                        next();
+                        const right = parseExpr(bp + 1);
+                        left = applyOp(tok.v, left, right);
+                    }
+                    return left;
+                };
+
+                const value = parseExpr(0);
+                if (peek().t !== 'eof') {
+                    throw new Error(t('Unexpected token'));
+                }
+                return value;
+            };
+
+            const getAdapterInstanceId = () => {
+                const adapterName = (props && (props.adapterName || props.adapter)) || 'data-solectrus';
+                const instanceId = props && typeof props.instanceId === 'string' ? props.instanceId : '';
+                if (instanceId && String(instanceId).startsWith('system.adapter.')) return String(instanceId);
+                if (instanceId && /^[a-zA-Z0-9_-]+\.\d+$/.test(String(instanceId))) return String(instanceId);
+                const inst = props && Number.isFinite(props.instance) ? props.instance : 0;
+                return `${adapterName}.${inst}`;
+            };
+
+            const getAdapterSendToTargets = () => {
+                const base = getAdapterInstanceId();
+                if (!base) return [];
+                if (String(base).startsWith('system.adapter.')) {
+                    const short = String(base).slice('system.adapter.'.length);
+                    return [String(base), short].filter(Boolean);
+                }
+                return [String(base), `system.adapter.${String(base)}`];
+            };
+
+            const getAdapterAliveId = () => {
+                const base = getAdapterInstanceId();
+                if (!base) return '';
+                return String(base).startsWith('system.adapter.') ? `${base}.alive` : `system.adapter.${base}.alive`;
+            };
+
+            const sanitizeInputKey = raw => {
+                const keyRaw = raw ? String(raw).trim() : '';
+                const key = keyRaw.replace(/[^a-zA-Z0-9_]/g, '_');
+                if (key === '__proto__' || key === 'prototype' || key === 'constructor') return '';
+                return key;
+            };
+
+            const openFormulaBuilder = () => {
+                if (!selectedItem) return;
+                setFormulaDraft(String(selectedItem.formula || ''));
+                setFormulaBuilderOpen(true);
+                try {
+                    globalThis.requestAnimationFrame(() => {
+                        const el = formulaEditorRef.current;
+                        if (el && typeof el.focus === 'function') {
+                            el.focus();
+                        }
+                    });
+                } catch {
+                    // ignore
+                }
+            };
+
+            const refreshFormulaLiveValues = async opts => {
+                const reason = opts && opts.reason ? String(opts.reason) : '';
+                if (!formulaBuilderOpen) return;
+                if (!selectedItem) return;
+                if (!socket || typeof socket.getState !== 'function') return;
+
+                const inputs = Array.isArray(selectedItem.inputs) ? selectedItem.inputs : [];
+                const ids = inputs
+                    .map(inp => (inp && inp.sourceState ? String(inp.sourceState) : ''))
+                    .filter(Boolean);
+                const uniqueIds = Array.from(new Set(ids));
+                if (!uniqueIds.length) {
+                    setFormulaLiveValues({});
+                    setFormulaLiveTs({});
+                    setFormulaLivePollNonce(n => n + 1);
+                    return;
+                }
+
+                setFormulaLiveLoading(true);
+                try {
+                    const results = await Promise.all(
+                        uniqueIds.map(async id => {
+                            try {
+                                const st = await socket.getState(id);
+                                return { id, st: st || null };
+                            } catch {
+                                return { id, st: null };
+                            }
+                        })
+                    );
+                    const nextVals = {};
+                    const nextTs = {};
+                    for (const r of results) {
+                        nextVals[r.id] = r.st ? r.st.val : undefined;
+                        nextTs[r.id] = r.st && typeof r.st.ts === 'number' ? r.st.ts : undefined;
+                    }
+                    setFormulaLiveValues(nextVals);
+                    setFormulaLiveTs(nextTs);
+                    setFormulaLivePollNonce(n => n + 1);
+                    if (reason && props && props.onDebug) {
+                        try {
+                            props.onDebug('formulaLiveValues', { reason, count: uniqueIds.length });
+                        } catch {
+                            // ignore
+                        }
+                    }
+                } finally {
+                    setFormulaLiveLoading(false);
+                }
+            };
+
+            const refreshFormulaPreview = async opts => {
+                const reason = opts && opts.reason ? String(opts.reason) : '';
+                const showLoading = !!(opts && opts.showLoading);
+                if (!formulaBuilderOpen) return;
+                if (!selectedItem) return;
+
+                const inputs = Array.isArray(selectedItem.inputs) ? selectedItem.inputs : [];
+                const vars = Object.create(null);
+                for (const inp of inputs) {
+                    const key = sanitizeInputKey(inp && inp.key ? inp.key : '');
+                    if (!key) continue;
+                    const id = inp && inp.sourceState ? String(inp.sourceState) : '';
+                    if (!id) continue;
+                    const val = formulaLiveValues[id];
+                    if (val === undefined) continue;
+                    vars[key] = val;
+                }
+
+                if (showLoading) {
+                    setFormulaPreviewLoading(true);
+                }
+                try {
+                    const val = evalPreviewExpression(String(formulaDraft || ''), vars);
+                    setFormulaPreview({ ok: true, value: val });
+                    if (reason && props && props.onDebug) {
+                        try {
+                            props.onDebug('formulaPreview', { reason, ok: true });
+                        } catch {
+                            // ignore
+                        }
+                    }
+                } catch (e) {
+                    const err = e && e.message ? String(e.message) : String(e);
+                    setFormulaPreview({ ok: false, error: err });
+                } finally {
+                    if (showLoading) {
+                        setFormulaPreviewLoading(false);
+                    }
+                }
+            };
+
+            React.useEffect(() => {
+                if (!formulaBuilderOpen) return;
+                let timer = null;
+                try {
+                    timer = setTimeout(() => {
+                        refreshFormulaPreview({ reason: 'debounced' });
+                    }, 250);
+                } catch {
+                    // ignore
+                }
+                return () => {
+                    if (timer) {
+                        try {
+                            clearTimeout(timer);
+                        } catch {
+                            // ignore
+                        }
+                    }
+                };
+            }, [formulaBuilderOpen, formulaDraft, formulaLiveSignature]);
+
+            React.useEffect(() => {
+                if (!formulaBuilderOpen) return;
+                let alive = true;
+                let timer = null;
+
+                const run = async () => {
+                    if (!alive) return;
+                    await refreshFormulaLiveValues({ reason: 'auto' });
+                };
+
+                run();
+                try {
+                    timer = setInterval(() => {
+                        run();
+                    }, 2000);
+                } catch {
+                    // ignore
+                }
+
+                return () => {
+                    alive = false;
+                    if (timer) {
+                        try {
+                            clearInterval(timer);
+                        } catch {
+                            // ignore
+                        }
+                    }
+                };
+            }, [formulaBuilderOpen, selectedIndex, formulaInputSignature]);
+
+            const insertIntoFormulaDraft = opts => {
+                const text = opts && opts.text !== undefined ? String(opts.text) : '';
+                const el = formulaEditorRef.current;
+                const curValue = String(formulaDraft || '');
+                const selStart = el && typeof el.selectionStart === 'number' ? el.selectionStart : curValue.length;
+                const selEnd = el && typeof el.selectionEnd === 'number' ? el.selectionEnd : curValue.length;
+                const before = curValue.slice(0, selStart);
+                const after = curValue.slice(selEnd);
+                const next = before + text + after;
+
+                const startWithin = opts && typeof opts.selectStartWithinText === 'number' ? opts.selectStartWithinText : text.length;
+                const endWithin = opts && typeof opts.selectEndWithinText === 'number' ? opts.selectEndWithinText : text.length;
+                const nextSelStart = selStart + Math.max(0, startWithin);
+                const nextSelEnd = selStart + Math.max(0, endWithin);
+
+                setFormulaDraft(next);
+                try {
+                    globalThis.requestAnimationFrame(() => {
+                        const el2 = formulaEditorRef.current;
+                        if (!el2 || typeof el2.focus !== 'function') return;
+                        el2.focus();
+                        try {
+                            el2.setSelectionRange(nextSelStart, nextSelEnd);
+                        } catch {
+                            // ignore
+                        }
+                    });
+                } catch {
+                    // ignore
+                }
+            };
 
             const updateSelected = (field, value) => {
                 const nextItems = items.map((it, i) => {
@@ -782,6 +1411,9 @@
                         const inp = inputs[selectContext.index];
                         return inp && inp.sourceState ? inp.sourceState : '';
                     }
+					if (selectContext.kind === 'formulaFn') {
+						return '';
+					}
                     return '';
                 })();
 
@@ -805,8 +1437,454 @@
                         if (selectContext.kind === 'input' && Number.isFinite(selectContext.index)) {
                             updateInput(selectContext.index, 'sourceState', selectedStr);
                         }
+                        if (selectContext.kind === 'formulaFn') {
+                            const fn = selectContext.fn;
+                            if (fn === 's') {
+                                insertIntoFormulaDraft({ text: `s("${selectedStr}")`, selectStartWithinText: (`s("`).length + String(selectedStr).length + 2, selectEndWithinText: (`s("`).length + String(selectedStr).length + 2 });
+                                return;
+                            }
+                            if (fn === 'v') {
+                                insertIntoFormulaDraft({ text: `v("${selectedStr}")`, selectStartWithinText: (`v("`).length + String(selectedStr).length + 2, selectEndWithinText: (`v("`).length + String(selectedStr).length + 2 });
+                                return;
+                            }
+                            if (fn === 'jp') {
+                                const txt = `jp("${selectedStr}", "$.value")`;
+                                const start = txt.indexOf('$.value');
+                                insertIntoFormulaDraft({ text: txt, selectStartWithinText: start, selectEndWithinText: start + '$.value'.length });
+                                return;
+                            }
+                        }
                     },
                 });
+            };
+
+            const renderFormulaBuilderModal = () => {
+                if (!formulaBuilderOpen || !selectedItem) return null;
+
+                const overlayStyle = {
+                    position: 'fixed',
+                    inset: 0,
+                    background: isDark ? 'rgba(0,0,0,0.65)' : 'rgba(0,0,0,0.35)',
+                    zIndex: 5000,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 16,
+                };
+
+                const modalStyle = {
+                    width: 'min(1100px, 92vw)',
+                    height: 'min(780px, 88vh)',
+                    borderRadius: 12,
+                    border: `1px solid ${colors.border}`,
+                    background: colors.panelBg,
+                    boxShadow: isDark ? '0 18px 50px rgba(0,0,0,0.55)' : '0 18px 50px rgba(0,0,0,0.22)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                };
+
+                const modalHeaderStyle = {
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    padding: '10px 12px',
+                    borderBottom: `1px solid ${colors.rowBorder}`,
+                    background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                };
+
+                const modalBodyStyle = {
+                    flex: 1,
+                    display: 'flex',
+                    minHeight: 0,
+                };
+
+                const modalLeftStyle = {
+                    width: 320,
+                    maxWidth: '44%',
+                    borderRight: `1px solid ${colors.rowBorder}`,
+                    padding: 12,
+                    overflow: 'auto',
+                    background: colors.panelBg2,
+                };
+
+                const modalRightStyle = {
+                    flex: 1,
+                    padding: 12,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                    minWidth: 0,
+                };
+
+                const sectionTitleStyle = {
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: colors.text,
+                    marginTop: 10,
+                    marginBottom: 6,
+                };
+
+                const chipBtnStyle = {
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '7px 10px',
+                    borderRadius: 999,
+                    border: `1px solid ${colors.border}`,
+                    background: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
+                    cursor: 'pointer',
+                    color: colors.text,
+                    fontFamily: 'inherit',
+                    fontSize: 13,
+                };
+
+                const chipBtnDisabledStyle = Object.assign({}, chipBtnStyle, {
+                    opacity: 0.45,
+                    cursor: 'not-allowed',
+                });
+
+                const valuePillStyle = {
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '4px 8px',
+                    borderRadius: 999,
+                    border: `1px solid ${colors.border}`,
+                    background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                    color: colors.textMuted,
+                    fontSize: 12,
+                    maxWidth: '100%',
+                };
+
+                const previewOkPillStyle = Object.assign({}, valuePillStyle, {
+                    color: colors.text,
+                    background: isDark ? 'rgba(46, 204, 113, 0.12)' : 'rgba(46, 204, 113, 0.10)',
+                    border: `1px solid ${isDark ? 'rgba(46, 204, 113, 0.35)' : 'rgba(46, 204, 113, 0.25)'}`,
+                });
+
+                const previewErrPillStyle = Object.assign({}, valuePillStyle, {
+                    color: colors.text,
+                    background: isDark ? 'rgba(231, 76, 60, 0.12)' : 'rgba(231, 76, 60, 0.10)',
+                    border: `1px solid ${isDark ? 'rgba(231, 76, 60, 0.35)' : 'rgba(231, 76, 60, 0.25)'}`,
+                });
+
+                const vars = Array.isArray(selectedItem.inputs)
+                    ? selectedItem.inputs
+                        .map(inp => {
+                            const rawKey = inp && inp.key ? String(inp.key) : '';
+                            const key = sanitizeInputKey(rawKey);
+                            return { rawKey, key, sourceState: inp && inp.sourceState ? String(inp.sourceState) : '' };
+                        })
+                        .filter(v => !!v.key)
+                    : [];
+
+                const close = () => setFormulaBuilderOpen(false);
+                const apply = () => {
+                    updateSelected('formula', String(formulaDraft || ''));
+                    setFormulaBuilderOpen(false);
+                };
+
+                const onOverlayMouseDown = e => {
+                    if (e && e.target === e.currentTarget) {
+                        close();
+                    }
+                };
+
+                return React.createElement(
+                    'div',
+                    { style: overlayStyle, onMouseDown: onOverlayMouseDown },
+                    React.createElement(
+                        'div',
+                        { style: modalStyle },
+                        React.createElement(
+                            'div',
+                            { style: modalHeaderStyle },
+                            React.createElement('div', { style: { display: 'flex', flexDirection: 'column' } },
+                                React.createElement('div', { style: { fontSize: 14, fontWeight: 700 } }, t('Formula Builder')),
+                                React.createElement('div', { style: { fontSize: 12, color: colors.textMuted } }, t('Insert building blocks on the left. The editor uses current (unsaved) inputs.'))
+                            ),
+                            React.createElement(
+                                'button',
+                                { type: 'button', style: btnStyle, onClick: close, title: t('Close') },
+                                t('Close')
+                            )
+                        ),
+                        React.createElement(
+                            'div',
+                            { style: modalBodyStyle },
+                            React.createElement(
+                                'div',
+                                { style: modalLeftStyle },
+                                React.createElement('div', { style: sectionTitleStyle }, t('Variables (Inputs)')),
+                                React.createElement(
+                                    'div',
+                                    { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 } },
+                                    React.createElement('div', { style: { fontSize: 12, color: colors.textMuted } }, t('Live values')),
+                                    React.createElement(
+                                        'button',
+                                        {
+                                            type: 'button',
+                                            style: Object.assign({}, btnStyle, { padding: '5px 9px', fontSize: 12 }),
+                                            disabled: formulaLiveLoading || !(socket && typeof socket.getState === 'function'),
+                                            onClick: () => refreshFormulaLiveValues({ reason: 'manual' }),
+                                            title: t('Refresh'),
+                                        },
+                                        formulaLiveLoading ? t('Loading…') : t('Refresh')
+                                    )
+                                ),
+                                vars.length
+                                    ? vars.map((v, idx) => {
+                                          const title = v.sourceState ? `${v.rawKey} ← ${v.sourceState}` : v.rawKey;
+                                          const liveId = v.sourceState;
+                                          const liveVal = liveId ? formulaLiveValues[liveId] : undefined;
+                                          const liveTs = liveId ? formulaLiveTs[liveId] : undefined;
+                                          const liveText = liveId
+                                              ? liveVal === undefined
+                                                    ? t('n/a')
+                                                    : stringifyCompact(liveVal)
+                                              : t('n/a');
+                                          return React.createElement(
+                                              'div',
+                                              {
+                                                  key: `${v.key}|${idx}`,
+                                                  style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8, alignItems: 'center' },
+                                              },
+                                              React.createElement(
+                                                  'button',
+                                                  {
+                                                      type: 'button',
+                                                      style: chipBtnStyle,
+                                                      onClick: () => insertIntoFormulaDraft({ text: v.key }),
+                                                      title,
+                                                  },
+                                                  v.key,
+                                                  v.rawKey && v.rawKey !== v.key
+                                                      ? React.createElement(
+                                                            'span',
+                                                            { style: { fontSize: 11, opacity: 0.75 } },
+                                                            `(${v.rawKey})`
+                                                        )
+                                                      : null
+                                              ),
+                                              v.sourceState
+                                                  ? React.createElement(
+                                                        'span',
+                                                        {
+                                                            style: valuePillStyle,
+                                                            title: liveTs
+                                                                ? `${liveText} @ ${new Date(liveTs).toLocaleString()}`
+                                                                : liveText,
+                                                        },
+                                                        liveText
+                                                    )
+                                                  : null
+                                          );
+                                      })
+                                    : React.createElement(
+                                          'div',
+                                          { style: { fontSize: 12, color: colors.textMuted } },
+                                          t('No inputs configured yet.')
+                                      ),
+
+                                React.createElement('div', { style: sectionTitleStyle }, t('Operators')),
+                                React.createElement(
+                                    'div',
+                                    { style: { display: 'flex', flexWrap: 'wrap', gap: 8 } },
+                                    ['+', '-', '*', '/', '%', '(', ')', '&&', '||', '!', '==', '!=', '>=', '<=', '>', '<', '?', ':'].map(op =>
+                                        React.createElement(
+                                            'button',
+                                            {
+                                                key: op,
+                                                type: 'button',
+                                                style: chipBtnStyle,
+                                                onClick: () => insertIntoFormulaDraft({ text: op }),
+                                            },
+                                            op
+                                        )
+                                    )
+                                ),
+
+                                React.createElement('div', { style: sectionTitleStyle }, t('Functions')),
+                                React.createElement(
+                                    'div',
+                                    { style: { display: 'flex', flexWrap: 'wrap', gap: 8 } },
+                                    React.createElement(
+                                        'button',
+                                        {
+                                            type: 'button',
+                                            style: chipBtnStyle,
+                                            onClick: () =>
+                                                insertIntoFormulaDraft({ text: 'min(a, b)', selectStartWithinText: 4, selectEndWithinText: 5 }),
+                                        },
+                                        t('min')
+                                    ),
+                                    React.createElement(
+                                        'button',
+                                        {
+                                            type: 'button',
+                                            style: chipBtnStyle,
+                                            onClick: () =>
+                                                insertIntoFormulaDraft({ text: 'max(a, b)', selectStartWithinText: 4, selectEndWithinText: 5 }),
+                                        },
+                                        t('max')
+                                    ),
+                                    React.createElement(
+                                        'button',
+                                        {
+                                            type: 'button',
+                                            style: chipBtnStyle,
+                                            onClick: () =>
+                                                insertIntoFormulaDraft({
+                                                    text: 'clamp(value, min, max)',
+                                                    selectStartWithinText: 6,
+                                                    selectEndWithinText: 11,
+                                                }),
+                                        },
+                                        t('clamp')
+                                    ),
+                                    React.createElement(
+                                        'button',
+                                        {
+                                            type: 'button',
+                                            style: chipBtnStyle,
+                                            onClick: () =>
+                                                insertIntoFormulaDraft({
+                                                    text: 'IF(condition, valueIfTrue, valueIfFalse)',
+                                                    selectStartWithinText: 3,
+                                                    selectEndWithinText: 12,
+                                                }),
+                                        },
+                                        t('IF')
+                                    )
+                                ),
+
+                                React.createElement('div', { style: sectionTitleStyle }, t('State functions')),
+                                React.createElement(
+                                    'div',
+                                    { style: { display: 'flex', flexWrap: 'wrap', gap: 8 } },
+                                    React.createElement(
+                                        'button',
+                                        {
+                                            type: 'button',
+                                            style: DialogSelectID && socket && theme ? chipBtnStyle : chipBtnDisabledStyle,
+                                            disabled: !(DialogSelectID && socket && theme),
+                                            onClick: () => setSelectContext({ kind: 'formulaFn', fn: 's' }),
+                                            title: t('Pick a state id and insert s("id")'),
+                                        },
+                                        t('Insert s()')
+                                    ),
+                                    React.createElement(
+                                        'button',
+                                        {
+                                            type: 'button',
+                                            style: DialogSelectID && socket && theme ? chipBtnStyle : chipBtnDisabledStyle,
+                                            disabled: !(DialogSelectID && socket && theme),
+                                            onClick: () => setSelectContext({ kind: 'formulaFn', fn: 'v' }),
+                                            title: t('Pick a state id and insert v("id")'),
+                                        },
+                                        t('Insert v()')
+                                    ),
+                                    React.createElement(
+                                        'button',
+                                        {
+                                            type: 'button',
+                                            style: DialogSelectID && socket && theme ? chipBtnStyle : chipBtnDisabledStyle,
+                                            disabled: !(DialogSelectID && socket && theme),
+                                            onClick: () => setSelectContext({ kind: 'formulaFn', fn: 'jp' }),
+                                            title: t('Pick a state id and insert jp("id", "$.value")'),
+                                        },
+                                        t('Insert jp()')
+                                    )
+                                )
+                            ),
+                            React.createElement(
+                                'div',
+                                { style: modalRightStyle },
+                                React.createElement(
+                                    'div',
+                                    { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 } },
+                                    React.createElement(
+                                        'label',
+                                        { style: Object.assign({}, labelStyle, { marginTop: 0 }) },
+                                        t('Formula expression')
+                                    ),
+                                    React.createElement(
+                                        'div',
+                                        {
+                                            style: {
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'flex-end',
+                                                gap: 8,
+                                                flexWrap: 'wrap',
+                                            },
+                                        },
+                                        React.createElement(
+                                            'span',
+                                            { style: { fontSize: 12, color: colors.textMuted } },
+                                            t('Result')
+                                        ),
+                                        React.createElement(
+                                            'button',
+                                            {
+                                                type: 'button',
+                                                style: Object.assign({}, btnStyle, { padding: '5px 9px', fontSize: 12 }),
+											disabled: formulaPreviewLoading,
+											onClick: () => refreshFormulaPreview({ reason: 'manual', showLoading: true }),
+                                                title: t('Refresh preview'),
+                                            },
+                                            formulaPreviewLoading ? t('Loading…') : t('Refresh')
+                                        ),
+                                        formulaPreview && formulaPreview.ok
+                                            ? React.createElement(
+                                                  'span',
+                                                  { style: previewOkPillStyle, title: stringifyCompact(formulaPreview.value, 200) },
+                                                  stringifyCompact(formulaPreview.value)
+                                              )
+                                            : formulaPreview && !formulaPreview.ok
+                                              ? React.createElement(
+                                                    'span',
+                                                    { style: previewErrPillStyle, title: formulaPreview.error ? String(formulaPreview.error) : '' },
+                                                    formulaPreview.error ? stringifyCompact(formulaPreview.error) : t('n/a')
+                                                )
+                                              : React.createElement('span', { style: valuePillStyle }, t('n/a'))
+                                    )
+                                ),
+                                React.createElement('textarea', {
+                                    ref: formulaEditorRef,
+                                    style: Object.assign({}, inputStyle, {
+                                        minHeight: 260,
+                                        flex: 1,
+                                        resize: 'none',
+                                        fontFamily:
+                                            "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+                                        lineHeight: 1.45,
+                                    }),
+                                    value: formulaDraft,
+                                    onChange: e => setFormulaDraft(e.target.value),
+                                    placeholder: t('e.g. pv1 + pv2 + pv3'),
+                                    spellCheck: false,
+                                }),
+                                React.createElement(
+                                    'div',
+                                    { style: { display: 'flex', justifyContent: 'space-between', gap: 8 } },
+                                    React.createElement(
+                                        'div',
+                                        { style: { fontSize: 12, color: colors.textMuted, alignSelf: 'center' } },
+                                        t('Tip: You can still edit the formula as plain text anytime.')
+                                    ),
+                                    React.createElement(
+                                        'div',
+                                        { style: { display: 'flex', gap: 8 } },
+                                        React.createElement('button', { type: 'button', style: btnStyle, onClick: close }, t('Cancel')),
+                                        React.createElement('button', { type: 'button', style: btnStyle, onClick: apply }, t('Apply'))
+                                    )
+                                )
+                            )
+                        ),
+                    )
+                );
             };
 
             return React.createElement(
@@ -1143,7 +2221,16 @@
                                                 )
                                             )
                                         ),
-                                        React.createElement('label', { style: labelStyle }, t('Formula expression')),
+                                            React.createElement(
+    										'div',
+    										{ style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 10 } },
+    										React.createElement('label', { style: Object.assign({}, labelStyle, { marginTop: 0 }) }, t('Formula expression')),
+    										React.createElement(
+    											'button',
+    											{ type: 'button', style: Object.assign({}, btnStyle, { padding: '6px 10px' }), onClick: openFormulaBuilder },
+    											t('Builder…')
+    										)
+    									),
                                         React.createElement('textarea', {
                                             style: Object.assign({}, inputStyle, { minHeight: 80 }),
                                             value: selectedItem.formula || '',
@@ -1334,6 +2421,7 @@
                                         )
                                     )
                                   : null,
+							renderFormulaBuilderModal(),
                               renderStatePicker()
                           )
                         : React.createElement(

@@ -2,6 +2,7 @@
 
 - [[Home]]
 - [[Use-Cases]]
+- [[Formula-Builder]]
 
 ### Use-Cases
 
