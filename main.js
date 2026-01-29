@@ -10,6 +10,12 @@ class DataSolectrus extends utils.Adapter {
 			name: 'data-solectrus',
 		});
 
+		// Hard limits to keep formula evaluation predictable even with hostile/mistyped configs.
+		this.MAX_FORMULA_LENGTH = 8000;
+		this.MAX_AST_NODES = 2000;
+		this.MAX_AST_DEPTH = 60;
+		this.MAX_DISCOVERED_STATE_IDS_PER_ITEM = 250;
+
 		this.cache = new Map();
 		this.cacheTs = new Map();
 		this.currentSnapshot = null;
@@ -38,13 +44,20 @@ class DataSolectrus extends utils.Adapter {
 				if (Number.isFinite(hi) && v > hi) return hi;
 				return v;
 			},
-			// Read a foreign state value by id from cache/snapshot (raw; string/boolean/number).
+			// Read a foreign state value by id from cache/snapshot (raw, but restricted to primitives).
+			// This keeps formulas deterministic and avoids accidentally dragging large objects into evaluation.
 			v: id => {
 				const key = String(id);
-				if (this.currentSnapshot && typeof this.currentSnapshot.get === 'function') {
-					return this.currentSnapshot.get(key);
-				}
-				return this.cache.get(key);
+				const val = (this.currentSnapshot && typeof this.currentSnapshot.get === 'function')
+					? this.currentSnapshot.get(key)
+					: this.cache.get(key);
+				if (val === null || val === undefined) return val;
+				const t = typeof val;
+				if (t === 'string' || t === 'number' || t === 'boolean') return val;
+				// Best-effort for Date-like values; everything else becomes empty string.
+				if (val instanceof Date && typeof val.toISOString === 'function') return val.toISOString();
+				this.debugOnce(`v_non_primitive|${key}`, `v("${key}") returned non-primitive (${t}); treating as empty string`);
+				return '';
 			},
 			// Read a foreign state value by id from cache (sync, safe).
 			s: id => {
@@ -107,6 +120,7 @@ class DataSolectrus extends utils.Adapter {
 		let cur = obj;
 		let i = 1; // skip '$'
 		const len = p.length;
+		const isDangerousKey = k => k === '__proto__' || k === 'prototype' || k === 'constructor';
 		while (i < len) {
 			const ch = p[i];
 			if (ch === '.') {
@@ -115,6 +129,7 @@ class DataSolectrus extends utils.Adapter {
 				while (i < len && /[A-Za-z0-9_]/.test(p[i])) i++;
 				const key = p.slice(start, i);
 				if (!key) return undefined;
+				if (isDangerousKey(key)) return undefined;
 				if (cur === null || cur === undefined) return undefined;
 				cur = cur[key];
 				continue;
@@ -147,6 +162,7 @@ class DataSolectrus extends utils.Adapter {
 					while (i < len && /\s/.test(p[i])) i++;
 					if (p[i] !== ']') return undefined;
 					i++;
+					if (isDangerousKey(str)) return undefined;
 					if (cur === null || cur === undefined) return undefined;
 					cur = cur[str];
 					continue;
@@ -170,6 +186,56 @@ class DataSolectrus extends utils.Adapter {
 			return undefined;
 		}
 		return cur;
+	}
+
+	analyzeAst(ast) {
+		const maxNodes = this.MAX_AST_NODES;
+		const maxDepth = this.MAX_AST_DEPTH;
+		let nodes = 0;
+		let depthMax = 0;
+		/** @type {{node:any, depth:number}[]} */
+		const stack = [{ node: ast, depth: 1 }];
+		while (stack.length) {
+			const entry = stack.pop();
+			const node = entry && entry.node;
+			const depth = entry && entry.depth ? entry.depth : 1;
+			if (!node || typeof node !== 'object') continue;
+			nodes++;
+			if (depth > depthMax) depthMax = depth;
+			if (nodes > maxNodes) {
+				throw new Error(`Expression too complex (>${maxNodes} nodes)`);
+			}
+			if (depthMax > maxDepth) {
+				throw new Error(`Expression too deeply nested (>${maxDepth})`);
+			}
+
+			switch (node.type) {
+				case 'BinaryExpression':
+				case 'LogicalExpression':
+					stack.push({ node: node.right, depth: depth + 1 });
+					stack.push({ node: node.left, depth: depth + 1 });
+					break;
+				case 'UnaryExpression':
+					stack.push({ node: node.argument, depth: depth + 1 });
+					break;
+				case 'ConditionalExpression':
+					stack.push({ node: node.alternate, depth: depth + 1 });
+					stack.push({ node: node.consequent, depth: depth + 1 });
+					stack.push({ node: node.test, depth: depth + 1 });
+					break;
+				case 'CallExpression': {
+					const args = Array.isArray(node.arguments) ? node.arguments : [];
+					for (let i = args.length - 1; i >= 0; i--) {
+						stack.push({ node: args[i], depth: depth + 1 });
+					}
+					// callee is an Identifier in allowed expressions; no need to traverse.
+					break;
+				}
+				default:
+					break;
+			}
+		}
+		return { nodes, depth: depthMax };
 	}
 
 	getNumericFromJsonPath(rawValue, jsonPath, warnKeyPrefix = '') {
@@ -314,7 +380,11 @@ class DataSolectrus extends utils.Adapter {
 
 	evalFormula(expr, vars) {
 		const normalized = this.normalizeFormulaExpression(expr);
+		if (normalized && normalized.length > this.MAX_FORMULA_LENGTH) {
+			throw new Error(`Formula too long (>${this.MAX_FORMULA_LENGTH} chars)`);
+		}
 		const ast = jsep(String(normalized));
+		this.analyzeAst(ast);
 		const funcs = this.formulaFunctions;
 
 		const evalNode = node => {
@@ -642,11 +712,23 @@ class DataSolectrus extends utils.Adapter {
 			// Also allow s("...") / v("...") in formula; discover these ids so snapshot/subscriptions can include them.
 			const expr = item.formula ? String(item.formula) : '';
 			if (expr) {
+				const max = this.MAX_DISCOVERED_STATE_IDS_PER_ITEM;
+				let added = 0;
 				const re = /\b(?:s|v)\(\s*(['"])([^'"\n\r]+)\1\s*\)/g;
 				let m;
 				while ((m = re.exec(expr)) !== null) {
 					const sid = (m[2] || '').trim();
-					if (sid) ids.push(sid);
+					if (!sid) continue;
+					ids.push(sid);
+					added++;
+					if (added >= max) {
+						const itemId = this.getItemDisplayId(item) || (item && item.name ? String(item.name) : 'item');
+						this.warnOnce(
+							`discover_ids_limit|${itemId}`,
+							`Formula contains many s()/v() state reads; limiting discovered ids to ${max} for '${itemId}'`
+						);
+						break;
+					}
 				}
 			}
 		}
