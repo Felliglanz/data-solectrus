@@ -13,7 +13,7 @@ Ziel: Datenpunkte (z.B. PV/Verbrauch/Batterie) per **Formeln** aus beliebigen io
 Der Adapter kann lokal als `.tgz` gebaut und in ioBroker installiert werden (oder via GitHub-Release, falls vorhanden).
 
 - Paket bauen: `npm pack`
-- Installation in ioBroker: Admin → Adapter → „Benutzerdefiniert“ / URL/Datei → `iobroker.data-solectrus-<version>.tgz` (z.B. `iobroker.data-solectrus-0.2.2.tgz`)
+- Installation in ioBroker: Admin → Adapter → „Benutzerdefiniert“ / URL/Datei → `iobroker.data-solectrus-<version>.tgz` (z.B. `iobroker.data-solectrus-0.2.3.tgz`)
 
 Hinweis: Adaptername in ioBroker ist `data-solectrus` (Instanz: `data-solectrus.0`).
 
@@ -57,6 +57,9 @@ Felder:
 	- Beispiele: `$.apower`, `$.aenergy.by_minute[2]`
 - **Inputs** (nur `mode=formula`): Liste aus (Key, Source State).
 	- Optional pro Input: **Input negativ auf 0** (klemmt nur diesen Input vor der Rechnung).
+	- Optional pro Input: **JSONPath**
+		- Wenn JSONPath auf einen String/Boolean zeigt, wird dieser Wert als Variable bereitgestellt (z.B. für `IF(opMode == 'Heating', ...)`).
+		- Wenn JSONPath auf eine Zahl zeigt (oder einen numerischen String wie `"12.2"`), wird der Wert als Zahl bereitgestellt.
 	- **Wichtig zu Keys**: In Formeln sind `-` und Leerzeichen Operatoren/Trenner.
 		- Verwende daher am besten nur `a-z`, `0-9`, `_` (z.B. `bkw_garage`, `enpal`, `zendure`).
 		- Intern werden ungültige Zeichen im Key zu `_` umgewandelt.

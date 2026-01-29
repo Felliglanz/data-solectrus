@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3 - 2026-01-29
+
+### Fixed
+
+- Formula inputs with JSONPath can now yield strings/booleans (not only numbers). This enables conditions like `IF(opMode == 'Heating', ..., 0)` when `opMode` is an input extracted from a JSON payload.
+	- Numeric-like strings (e.g. `"12.2"`) are still treated as numbers to keep strict comparisons (`===`) working as expected.
+
 ## 0.2.2 - 2026-01-29
 
 ### Added

@@ -519,6 +519,48 @@ class DataSolectrus extends utils.Adapter {
 		return this.safeNum(extracted);
 	}
 
+	getValueFromJsonPath(rawValue, jsonPath, warnKeyPrefix = '') {
+		const jp = jsonPath !== undefined && jsonPath !== null ? String(jsonPath).trim() : '';
+		if (!jp) {
+			return rawValue;
+		}
+
+		let obj = null;
+		if (rawValue && typeof rawValue === 'object') {
+			obj = rawValue;
+		} else if (typeof rawValue === 'string') {
+			const s = rawValue.trim();
+			if (!s) {
+				this.warnOnce(`${warnKeyPrefix}|empty`, `JSONPath configured but source value is empty (${jp})`);
+				return undefined;
+			}
+			try {
+				obj = JSON.parse(s);
+			} catch (e) {
+				this.warnOnce(
+					`${warnKeyPrefix}|parse`,
+					`Cannot parse JSON for JSONPath ${jp}: ${e && e.message ? e.message : e}`
+				);
+				return undefined;
+			}
+		} else {
+			this.warnOnce(`${warnKeyPrefix}|type`, `JSONPath configured but source value is not JSON (${typeof rawValue}) (${jp})`);
+			return undefined;
+		}
+
+		const extracted = this.applyJsonPath(obj, jp);
+		if (extracted === undefined) {
+			this.warnOnce(`${warnKeyPrefix}|path`, `JSONPath did not match any value: ${jp}`);
+			return undefined;
+		}
+		if (extracted === null) return null;
+		const t = typeof extracted;
+		if (t === 'string' || t === 'number' || t === 'boolean') return extracted;
+		if (extracted instanceof Date && typeof extracted.toISOString === 'function') return extracted.toISOString();
+		// Keep formulas deterministic: do not expose objects/arrays.
+		return undefined;
+	}
+
 	/**
 	 * Normalizes some common non-JS formula syntax into the JS-like operators that `jsep` understands.
 	 * - AND/OR/NOT (case-insensitive) -> && / || / !
@@ -1211,14 +1253,30 @@ class DataSolectrus extends utils.Adapter {
 			if (!key) continue;
 			const id = inp.sourceState ? String(inp.sourceState) : '';
 			const raw = snapshot ? snapshot.get(id) : this.cache.get(id);
-			let v = this.getNumericFromJsonPath(raw, inp && inp.jsonPath, `input|${id}|${key}`);
-			// Clamp negative inputs BEFORE formula evaluation.
-			// - item.noNegative: global for this item
-			// - inp.noNegative: only this input
-			if (((item && item.noNegative) || (inp && inp.noNegative)) && v < 0) {
-				v = 0;
+			let value;
+			const hasJsonPath = inp && inp.jsonPath !== undefined && inp.jsonPath !== null && String(inp.jsonPath).trim() !== '';
+			if (hasJsonPath) {
+				const extracted = this.getValueFromJsonPath(raw, inp && inp.jsonPath, `input|${id}|${key}`);
+				if (typeof extracted === 'string') {
+					const n = Number(extracted);
+					value = Number.isFinite(n) ? n : extracted;
+				} else if (typeof extracted === 'number') {
+					value = extracted;
+				} else if (typeof extracted === 'boolean') {
+					value = extracted;
+				} else {
+					value = extracted;
+				}
+			} else {
+				// Backwards compatible default: inputs without JSONPath are treated as numeric.
+				value = this.safeNum(raw);
 			}
-			vars[key] = v;
+
+			// Clamp negative inputs BEFORE formula evaluation (only if numeric).
+			if (typeof value === 'number' && ((item && item.noNegative) || (inp && inp.noNegative)) && value < 0) {
+				value = 0;
+			}
+			vars[key] = value;
 		}
 
 		const expr = item.formula ? String(item.formula).trim() : '';
