@@ -29,4 +29,11 @@ Weiter geht’s hier:
 
 - [[Use-Cases]]
 
+## Hinweis zu Formeln (ab v0.2.0)
+
+In v0.2.0 wurde die Formel-Syntax bewusst etwas strenger gemacht:
+
+- Potenzen bitte mit `pow(a, b)` (statt `a ** b`).
+- Gleichheit nur noch strikt: `===` und `!==` (kein `==` / `!=`).
+
 Tipp: Wenn du einen eigenen Anwendungsfall dokumentierst, hänge ihn in [[Use-Cases]] an – so bleibt das Wiki für Einsteiger schnell durchsuchbar.

@@ -2,6 +2,11 @@
 
 Hier sammeln wir konkrete Beispiele, die du 1:1 nachbauen kannst.
 
+Hinweis ab v0.2.0:
+
+- Potenzen bitte mit `pow(a, b)` (statt `a ** b`).
+- Gleichheit nur noch strikt: `===` und `!==` (kein `==` / `!=`).
+
 ## Übersicht
 
 - [PV-Leistung aus mehreren Quellen summieren](https://github.com/Felliglanz/data-solectrus/wiki/PV-Leistung-aus-mehreren-Quellen)
