@@ -1272,109 +1272,93 @@
                                 'div',
                                 { style: modalLeftStyle },
                                 React.createElement('div', { style: sectionTitleStyle }, t('Variables (Inputs)')),
-                            React.createElement(
-                                'div',
-                                { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 } },
-                                React.createElement('div', { style: { fontSize: 12, color: colors.textMuted } }, t('Live values')),
                                 React.createElement(
-                                    'button',
-                                    {
-                                        type: 'button',
-                                        style: Object.assign({}, btnStyle, { padding: '5px 9px', fontSize: 12 }),
-                                        disabled: formulaLiveLoading || !(socket && typeof socket.getState === 'function'),
-                                        onClick: () => refreshFormulaLiveValues({ reason: 'manual' }),
-                                        title: t('Refresh'),
-                                    },
-                                    formulaLiveLoading ? t('Loading…') : t('Refresh')
-                                )
-                            ),
+                                    'div',
+                                    { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 } },
+                                    React.createElement('div', { style: { fontSize: 12, color: colors.textMuted } }, t('Live values')),
+                                    React.createElement(
+                                        'button',
+                                        {
+                                            type: 'button',
+                                            style: Object.assign({}, btnStyle, { padding: '5px 9px', fontSize: 12 }),
+                                            disabled: formulaLiveLoading || !(socket && typeof socket.getState === 'function'),
+                                            onClick: () => refreshFormulaLiveValues({ reason: 'manual' }),
+                                            title: t('Refresh'),
+                                        },
+                                        formulaLiveLoading ? t('Loading…') : t('Refresh')
+                                    )
+                                ),
                                 vars.length
                                     ? vars.map((v, idx) => {
-                                            const title = v.sourceState ? `${v.rawKey} ← ${v.sourceState}` : v.rawKey;
-                                            const liveId = v.sourceState;
-                                            const liveVal = liveId ? formulaLiveValues[liveId] : undefined;
-                                            const liveTs = liveId ? formulaLiveTs[liveId] : undefined;
-                                            const liveText = liveId
-                                                ? liveVal === undefined
+                                          const title = v.sourceState ? `${v.rawKey} ← ${v.sourceState}` : v.rawKey;
+                                          const liveId = v.sourceState;
+                                          const liveVal = liveId ? formulaLiveValues[liveId] : undefined;
+                                          const liveTs = liveId ? formulaLiveTs[liveId] : undefined;
+                                          const liveText = liveId
+                                              ? liveVal === undefined
                                                     ? t('n/a')
                                                     : stringifyCompact(liveVal)
-                                                : t('n/a');
-                                            return React.createElement(
-                                                'div',
-                                                { key: `${v.key}|${idx}`, style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8, alignItems: 'center' } },
-                                                React.createElement(
-                                                    'button',
-                                                    { type: 'button', style: chipBtnStyle, onClick: () => insertIntoFormulaDraft({ text: v.key }), title },
-                                                    v.key,
-                                                    v.rawKey && v.rawKey !== v.key
-                                                        ? React.createElement('span', { style: { fontSize: 11, opacity: 0.75 } }, `(${v.rawKey})`)
-                                                        : null
-                                                ),
-                                            v.sourceState
-                                                ? React.createElement(
-                                                    'span',
-                                                    {
-                                                React.createElement(
-                                                    'div',
-                                                    { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 } },
-                                                    React.createElement('label', { style: Object.assign({}, labelStyle, { marginTop: 0 }) }, t('Formula expression')),
-                                                    React.createElement(
-                                                        'div',
-                                                        { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-                                                        React.createElement(
+                                              : t('n/a');
+                                          return React.createElement(
+                                              'div',
+                                              {
+                                                  key: `${v.key}|${idx}`,
+                                                  style: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8, alignItems: 'center' },
+                                              },
+                                              React.createElement(
+                                                  'button',
+                                                  {
+                                                      type: 'button',
+                                                      style: chipBtnStyle,
+                                                      onClick: () => insertIntoFormulaDraft({ text: v.key }),
+                                                      title,
+                                                  },
+                                                  v.key,
+                                                  v.rawKey && v.rawKey !== v.key
+                                                      ? React.createElement(
                                                             'span',
-                                                            { style: { fontSize: 12, color: colors.textMuted } },
-                                                            t('Result')
-                                                        ),
-                                                        React.createElement(
-                                                            'button',
-                                                            {
-                                                                type: 'button',
-                                                                style: Object.assign({}, btnStyle, { padding: '5px 9px', fontSize: 12 }),
-                                                                disabled: formulaPreviewLoading || !(socket && typeof socket.sendTo === 'function'),
-                                                                onClick: () => refreshFormulaPreview({ reason: 'manual' }),
-                                                                title: t('Refresh preview'),
-                                                            },
-                                                            formulaPreviewLoading ? t('Loading…') : t('Refresh')
-                                                        ),
-                                                        formulaPreview && formulaPreview.ok
-                                                            ? React.createElement(
-                                                                'span',
-                                                                { style: previewOkPillStyle, title: stringifyCompact(formulaPreview.value, 200) },
-                                                                stringifyCompact(formulaPreview.value)
-                                                            )
-                                                            : formulaPreview && !formulaPreview.ok
-                                                                ? React.createElement(
-                                                                    'span',
-                                                                    { style: previewErrPillStyle, title: formulaPreview.error ? String(formulaPreview.error) : '' },
-                                                                    formulaPreview.error ? stringifyCompact(formulaPreview.error) : t('n/a')
-                                                                )
-                                                                : React.createElement('span', { style: valuePillStyle }, t('n/a'))
+                                                            { style: { fontSize: 11, opacity: 0.75 } },
+                                                            `(${v.rawKey})`
+                                                        )
+                                                      : null
+                                              ),
+                                              v.sourceState
+                                                  ? React.createElement(
+                                                        'span',
+                                                        {
+                                                            style: valuePillStyle,
+                                                            title: liveTs
+                                                                ? `${liveText} @ ${new Date(liveTs).toLocaleString()}`
+                                                                : liveText,
+                                                        },
+                                                        liveText
                                                     )
-                                                ),
-                                                        style: valuePillStyle,
-                                                    title: liveTs ? `${liveText} @ ${new Date(liveTs).toLocaleString()}` : liveText,
-                                                },
-                                                    liveText
-                                                )
-                                                : null
-                                            );
-                                        })
-                                    : React.createElement('div', { style: { fontSize: 12, color: colors.textMuted } }, t('No inputs configured yet.')),
+                                                  : null
+                                          );
+                                      })
+                                    : React.createElement(
+                                          'div',
+                                          { style: { fontSize: 12, color: colors.textMuted } },
+                                          t('No inputs configured yet.')
+                                      ),
 
                                 React.createElement('div', { style: sectionTitleStyle }, t('Operators')),
                                 React.createElement(
                                     'div',
                                     { style: { display: 'flex', flexWrap: 'wrap', gap: 8 } },
-                                    ['+', '-', '*', '/', '%', '(', ')', '&&', '||', '!', '==', '!=', '>=', '<=', '>', '<', '?', ':']
-                                        .map(op =>
-                                            React.createElement(
-                                                'button',
-                                                { key: op, type: 'button', style: chipBtnStyle, onClick: () => insertIntoFormulaDraft({ text: op }) },
-                                                op
-                                            )
+                                    ['+', '-', '*', '/', '%', '(', ')', '&&', '||', '!', '==', '!=', '>=', '<=', '>', '<', '?', ':'].map(op =>
+                                        React.createElement(
+                                            'button',
+                                            {
+                                                key: op,
+                                                type: 'button',
+                                                style: chipBtnStyle,
+                                                onClick: () => insertIntoFormulaDraft({ text: op }),
+                                            },
+                                            op
                                         )
-                            ),
+                                    )
+                                ),
 
                                 React.createElement('div', { style: sectionTitleStyle }, t('Functions')),
                                 React.createElement(
@@ -1382,22 +1366,50 @@
                                     { style: { display: 'flex', flexWrap: 'wrap', gap: 8 } },
                                     React.createElement(
                                         'button',
-                                        { type: 'button', style: chipBtnStyle, onClick: () => insertIntoFormulaDraft({ text: 'min(a, b)', selectStartWithinText: 4, selectEndWithinText: 5 }) },
+                                        {
+                                            type: 'button',
+                                            style: chipBtnStyle,
+                                            onClick: () =>
+                                                insertIntoFormulaDraft({ text: 'min(a, b)', selectStartWithinText: 4, selectEndWithinText: 5 }),
+                                        },
                                         t('min')
                                     ),
                                     React.createElement(
                                         'button',
-                                        { type: 'button', style: chipBtnStyle, onClick: () => insertIntoFormulaDraft({ text: 'max(a, b)', selectStartWithinText: 4, selectEndWithinText: 5 }) },
+                                        {
+                                            type: 'button',
+                                            style: chipBtnStyle,
+                                            onClick: () =>
+                                                insertIntoFormulaDraft({ text: 'max(a, b)', selectStartWithinText: 4, selectEndWithinText: 5 }),
+                                        },
                                         t('max')
                                     ),
                                     React.createElement(
                                         'button',
-                                        { type: 'button', style: chipBtnStyle, onClick: () => insertIntoFormulaDraft({ text: 'clamp(value, min, max)', selectStartWithinText: 6, selectEndWithinText: 11 }) },
+                                        {
+                                            type: 'button',
+                                            style: chipBtnStyle,
+                                            onClick: () =>
+                                                insertIntoFormulaDraft({
+                                                    text: 'clamp(value, min, max)',
+                                                    selectStartWithinText: 6,
+                                                    selectEndWithinText: 11,
+                                                }),
+                                        },
                                         t('clamp')
                                     ),
                                     React.createElement(
                                         'button',
-                                        { type: 'button', style: chipBtnStyle, onClick: () => insertIntoFormulaDraft({ text: 'IF(condition, valueIfTrue, valueIfFalse)', selectStartWithinText: 3, selectEndWithinText: 12 }) },
+                                        {
+                                            type: 'button',
+                                            style: chipBtnStyle,
+                                            onClick: () =>
+                                                insertIntoFormulaDraft({
+                                                    text: 'IF(condition, valueIfTrue, valueIfFalse)',
+                                                    selectStartWithinText: 3,
+                                                    selectEndWithinText: 12,
+                                                }),
+                                        },
                                         t('IF')
                                     )
                                 ),
@@ -1444,7 +1456,56 @@
                             React.createElement(
                                 'div',
                                 { style: modalRightStyle },
-                                React.createElement('label', { style: Object.assign({}, labelStyle, { marginTop: 0 }) }, t('Formula expression')),
+                                React.createElement(
+                                    'div',
+                                    { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 } },
+                                    React.createElement(
+                                        'label',
+                                        { style: Object.assign({}, labelStyle, { marginTop: 0 }) },
+                                        t('Formula expression')
+                                    ),
+                                    React.createElement(
+                                        'div',
+                                        {
+                                            style: {
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'flex-end',
+                                                gap: 8,
+                                                flexWrap: 'wrap',
+                                            },
+                                        },
+                                        React.createElement(
+                                            'span',
+                                            { style: { fontSize: 12, color: colors.textMuted } },
+                                            t('Result')
+                                        ),
+                                        React.createElement(
+                                            'button',
+                                            {
+                                                type: 'button',
+                                                style: Object.assign({}, btnStyle, { padding: '5px 9px', fontSize: 12 }),
+                                                disabled: formulaPreviewLoading || !(socket && typeof socket.sendTo === 'function'),
+                                                onClick: () => refreshFormulaPreview({ reason: 'manual' }),
+                                                title: t('Refresh preview'),
+                                            },
+                                            formulaPreviewLoading ? t('Loading…') : t('Refresh')
+                                        ),
+                                        formulaPreview && formulaPreview.ok
+                                            ? React.createElement(
+                                                  'span',
+                                                  { style: previewOkPillStyle, title: stringifyCompact(formulaPreview.value, 200) },
+                                                  stringifyCompact(formulaPreview.value)
+                                              )
+                                            : formulaPreview && !formulaPreview.ok
+                                              ? React.createElement(
+                                                    'span',
+                                                    { style: previewErrPillStyle, title: formulaPreview.error ? String(formulaPreview.error) : '' },
+                                                    formulaPreview.error ? stringifyCompact(formulaPreview.error) : t('n/a')
+                                                )
+                                              : React.createElement('span', { style: valuePillStyle }, t('n/a'))
+                                    )
+                                ),
                                 React.createElement('textarea', {
                                     ref: formulaEditorRef,
                                     style: Object.assign({}, inputStyle, {
