@@ -1,6 +1,6 @@
 # ioBroker.Data-SOLECTRUS
 
-![GitHub Release](https://img.shields.io/github/v/release/Felliglanz/data-solectrus?sort=semver)
+![Version (Git Tag)](https://img.shields.io/github/v/tag/Felliglanz/data-solectrus?sort=semver)
 
 <img src="admin/data-solectrus.png" alt="SOLECTRUS" width="120" />
 
