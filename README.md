@@ -17,6 +17,19 @@ Der Adapter kann lokal als `.tgz` gebaut und in ioBroker installiert werden (ode
 
 Hinweis: Adaptername in ioBroker ist `data-solectrus` (Instanz: `data-solectrus.0`).
 
+## Development / Smoke Test
+
+Für schnelle Checks (z.B. nach Refactorings) gibt es einen Runtime-Smoke-Test, der **ohne** ioBroker-Controller läuft.
+Er mockt die minimal benötigte Adapter-API und führt einmalig diese Phasen aus:
+
+- `createInfoStates()`
+- `prepareItems()` (inkl. Formel-Compile, Source-Discovery, Subscriptions)
+- `runTick()` (ein Tick mit Snapshot + Berechnung + Output-States)
+
+Ausführen:
+
+- `npm run smoke`
+
 ## Konfiguration (Admin)
 
 Die Konfiguration ist absichtlich **leer** – du fügst nur die Werte hinzu, die du brauchst.
