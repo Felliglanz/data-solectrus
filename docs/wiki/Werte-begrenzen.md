@@ -17,7 +17,8 @@ Wenn dein Ergebnis nie negativ sein darf (z.B. PV-Leistung, Verbraucherleistung)
 
 - Aktiviere **Clamp negative to 0**
 
-Bei `mode=formula` wirkt das besonders gut, weil Inputs bereits vor der Rechnung bereinigt werden.
+Hinweis: **Clamp negative to 0** wirkt auf das **Ergebnis** (Output) des Items.
+Wenn du nur einzelne Quellen/Inputs bereinigen willst, nutze entweder die Option **Input negativ auf 0** direkt am jeweiligen Input oder `max(0, …)` in der Formel.
 
 ## 2) Ergebnis begrenzen (Min/Max)
 

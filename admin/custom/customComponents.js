@@ -275,7 +275,9 @@
         }
 
         // Clamp negative inputs BEFORE formula evaluation (only if numeric).
-        if (typeof value === 'number' && ((item && item.noNegative) || (inp && inp.noNegative)) && value < 0) {
+        // Keep in sync with adapter behavior: item.noNegative is an OUTPUT rule.
+        // Only per-input noNegative should clamp that specific source.
+        if (typeof value === 'number' && (inp && inp.noNegative) && value < 0) {
             value = 0;
         }
 
@@ -2581,13 +2583,23 @@
                               ),
                               React.createElement(
                                   'label',
-                                  { style: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 } },
+                                  {
+                                      style: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 },
+                                      title: t('Clamp negative to 0 (tooltip)')
+                                  },
                                   React.createElement('input', {
                                       type: 'checkbox',
                                       checked: !!selectedItem.noNegative,
                                       onChange: e => updateSelected('noNegative', !!e.target.checked),
                                   }),
                                   React.createElement('span', null, t('Clamp negative to 0'))
+                              ),
+                              React.createElement(
+                                  'div',
+                                  { style: { marginLeft: 26, marginTop: 4, fontSize: 12, color: colors.textMuted } },
+                                  t(selectedItem && selectedItem.mode === 'formula'
+                                      ? 'Clamp negative to 0 (hint formula)'
+                                      : 'Clamp negative to 0 (hint source)')
                               ),
                               selectedItem.clamp
                                   ? React.createElement(

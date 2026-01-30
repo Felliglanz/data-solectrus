@@ -4,20 +4,89 @@
 
 <img src="admin/data-solectrus.png" alt="SOLECTRUS" width="120" />
 
-ioBroker-Adapter, der eigene States unter `data-solectrus.0.*` anlegt und im festen Intervall (Standard: 5s, **wall-clock aligned**) mit berechneten Werten befüllt.
+Ein kleiner ioBroker-Adapter, der eigene States unter `data-solectrus.0.*` anlegt und im festen Intervall (Standard: 5s, **wall-clock aligned**) mit berechneten oder gespiegelten Werten befüllt.
 
-Ziel: Datenpunkte (z.B. PV/Verbrauch/Batterie) per **Formeln** aus beliebigen ioBroker-States zusammenstellen und als adapter-eigene States bereitstellen (z.B. für SOLECTRUS-Dashboards).
+Kurz gesagt: 🧮 **Formeln** + 🔌 **beliebige ioBroker-States** → 📦 **saubere, adapter-eigene Ziel-States** (z.B. für SOLECTRUS-Dashboards).
+
+## Highlights
+
+- ✅ `source`-Items: 1:1 spiegeln (optional mit JSONPath)
+- ✅ `formula`-Items: Werte aus vielen Quellen zusammenrechnen
+- ✅ Optionale Snapshot-Reads pro Tick (reduziert Timing-Effekte)
+- ✅ Clamps/Regeln am Ergebnis (z.B. Ergebnis negativ → 0, Min/Max)
+- ✅ Diagnose-States für Laufzeit/Fehler/Sync
 
 ## Installation
 
 Der Adapter kann lokal als `.tgz` gebaut und in ioBroker installiert werden (oder via GitHub-Release, falls vorhanden).
 
 - Paket bauen: `npm pack`
-- Installation in ioBroker: Admin → Adapter → „Benutzerdefiniert“ / URL/Datei → `iobroker.data-solectrus-<version>.tgz` (z.B. `iobroker.data-solectrus-0.2.5.tgz`)
+- Installation in ioBroker: Admin → Adapter → „Benutzerdefiniert“ / URL/Datei → `iobroker.data-solectrus-<version>.tgz` (z.B. `iobroker.data-solectrus-0.2.7.tgz`)
 
 Hinweis: Adaptername in ioBroker ist `data-solectrus` (Instanz: `data-solectrus.0`).
 
-## Development / Smoke Test
+## Quickstart (Konfig)
+
+Der Adapter ist absichtlich „leer“ – du legst nur die Items an, die du brauchst.
+
+1) **Items anlegen** (Admin → Adapter → data-solectrus → Werte)
+- `mode=source`: genau einen State spiegeln
+- `mode=formula`: mehrere Inputs + eine Formel
+
+2) Optional: **Snapshot aktivieren** (Global settings)
+- Wenn deine Quellen zeitversetzt updaten und du „kurz unplausible“ Kombinationen siehst, aktiviere Snapshot.
+
+## Wichtige Semantik (signed Meter / Clamps)
+
+### Ergebnis negativ → 0
+
+Die Option **„Ergebnis negativ → 0“** wirkt nur auf das **Ergebnis** des Items (Output).
+
+- Wenn du nur einzelne Inputs bereinigen willst (z.B. PV darf nie negativ sein, aber Netzleistung ist signed), nutze dafür pro Input **„neg→0“** oder `max(0, …)` in der Formel.
+
+### Beispiel: Hausverbrauch aus PV + signed Netzleistung
+
+- `gridSigned`: Import positiv, Export negativ
+- Hausverbrauch: `pvTotal + gridSigned`
+
+Wenn PV=4639W und Export=-2514W, ergibt sich Hausverbrauch ≈ 2125W.
+
+## Wiki / Use-Cases
+
+Die ausführlichen Beispiele und Erklärungen sind im Wiki:
+
+- https://github.com/Felliglanz/data-solectrus/wiki
+
+Direktlinks (Auswahl):
+
+- Hausverbrauch: https://github.com/Felliglanz/data-solectrus/wiki/Hausverbrauch
+- Werte begrenzen: https://github.com/Felliglanz/data-solectrus/wiki/Werte-begrenzen
+- Formel-Builder: https://github.com/Felliglanz/data-solectrus/wiki/Formel-Builder
+- Use-Cases Übersicht: https://github.com/Felliglanz/data-solectrus/wiki/Use-Cases
+
+## Diagnose-States
+
+Unter `data-solectrus.0.info.*` werden Status/Diagnosewerte gepflegt:
+
+- `info.status`: `starting`, `ok`, `no_items_enabled`
+- `info.itemsConfigured`, `info.itemsEnabled`
+- `info.lastError`
+- `info.lastRun`, `info.evalTimeMs`
+- `info.timeBudgetMs`, `info.skippedItems`
+
+Timing/Sync-Diagnose (hilft bei kurzzeitig „unplausiblen“ Kombinationen, wenn Quellen zeitversetzt updaten):
+
+- `info.inputTsGapMs`: Differenz zwischen ältestem und neuestem Input-Timestamp (ms) der im Tick genutzten Quellen
+- `info.inputTsGapOk`: `true/false` basierend auf einem konservativen Threshold
+- `info.inputTsGapThresholdMs`: verwendeter Threshold (ms)
+- `info.inputTsSources`: Anzahl Inputs mit Timestamp
+- `info.inputTsMissing`: Anzahl Inputs ohne Timestamp
+
+Zusätzlich gibt es per Item Diagnose-States unter `data-solectrus.0.items.<outputId>.*`:
+
+- `compiledOk`, `compileError`, `lastError`, `lastOkTs`, `lastEvalMs`, `consecutiveErrors`
+
+## Development / Checks
 
 Für schnelle Checks (z.B. nach Refactorings) gibt es einen Runtime-Smoke-Test, der **ohne** ioBroker-Controller läuft.
 Er mockt die minimal benötigte Adapter-API und führt einmalig diese Phasen aus:
@@ -83,8 +152,8 @@ Felder:
 Nachbearbeitung:
 
 - **Clamp negative to 0**: negative Werte werden auf `0` gesetzt.
-	- bei `mode=formula`: bereits auf **Inputs vor der Rechnung** (damit negative Messartefakte nicht in die Summe eingehen).
-	- zusätzlich immer auf das **Ergebnis** (zur Sicherheit; ändert nichts, wenn Inputs schon bereinigt sind).
+	- wirkt auf das **Ergebnis** des Items (Output).
+	- wenn du nur einzelne Quellen/Inputs „bereinigen“ willst (z.B. PV darf nie negativ sein, aber Netzleistung ist signed), nutze dafür **Input negativ auf 0** direkt am jeweiligen Input oder `max(0, …)` in der Formel.
 - **Clamp result**: Ergebnis begrenzen (Min/Max). Leere Felder bedeuten „nicht begrenzen“.
 
 ## Formeln
@@ -96,108 +165,12 @@ Die Variablen kommen aus den **Inputs** (Key → Source State). In der Formel ve
 Beispiel:
 
 - Inputs: `pv1`, `pv2`, `pv3`
+
+Zusätzlich:
+
+- `npm run lint` (Syntax-Check)
+- `npm run check:simulate` (kurzer 30s/6-Ticks Regression-Check für PV+signed Meter)
 - Formel: `pv1 + pv2 + pv3`
-
-### Erlaubte Operatoren
-
-- Arithmetik: `+ - * / %`
-- Vergleiche: `< <= > >= == != === !==`
-- Logik: `&& || !`
-- Ternary: `bedingung ? a : b`
-
-Kompatibilität (optional):
-
-- `AND`, `OR`, `NOT` werden (außerhalb von Strings) automatisch zu `&&`, `||`, `!` normalisiert.
-- Ein einzelnes `=` wird (außerhalb von Strings) automatisch zu `==` normalisiert.
-
-### Erlaubte Funktionen
-
-- `min(a, b, ...)`
-- `max(a, b, ...)`
-- `pow(a, b)`
-- `abs(x)`
-- `round(x)`
-- `floor(x)`
-- `ceil(x)`
-- `clamp(value, min, max)`
-- `IF(condition, valueIfTrue, valueIfFalse)` (Alias: `if(...)`)
-- `jp("state.id", "jsonPath")`
-
-### Beispiel: IF/Strings aus JSON (z.B. Wärmepumpe / Wärmemenge)
-
-Wichtig: Variablen wie `opMode` existieren nur, wenn du sie als **Input-Key** konfigurierst.
-Wenn du nur *einen* JSON-State hast (z.B. `mqtt.0.espaltherma.ATTR`) und daraus Strings/Numbers brauchst, nutze `jp(stateId, jsonPath)`.
-
-Bei JSON-Keys mit Leerzeichen musst du die Klammer-Notation verwenden: `$['Operation Mode']`.
-
-Beispiel (alle Werte aus einem JSON-State; IDs bitte an deine Umgebung anpassen):
-
-`IF(jp('mqtt.0.espaltherma.ATTR', "$['Operation Mode']") == 'Heating' && jp('mqtt.0.espaltherma.ATTR', "$['Freeze Protection']") == 'OFF', (jp('mqtt.0.espaltherma.ATTR', "$['Leaving water temp. before BUH (R1T)']") - jp('mqtt.0.espaltherma.ATTR', "$['Inlet water temp.(R4T)']")) * jp('mqtt.0.espaltherma.ATTR', "$['Flow sensor (l/min)']") * 60.0 * 1.163, 0)`
-
-Wenn du Bedingungen gegen **String-States** (nicht JSON) prüfen willst (z.B. Betriebsmodus als eigener State), nutze `v("...")`.
-
-### State-Lesen per ID (optional)
-
-Du kannst zusätzlich `s("voll.qualifizierter.state")` verwenden, um einen Wert direkt aus dem Cache zu lesen.
-
-Wenn du den **rohen** Wert (z.B. Strings wie `"Heating"`/`"OFF"` oder Booleans) brauchst, verwende `v("voll.qualifizierter.state")`.
-
-Beispiel:
-
-- `s("modbus.0.inputRegisters.12345") * 1000`
-
-Hinweis: Diese States sollten idealerweise als Inputs gepflegt werden.
-
-Update: `s("...")`, `v("...")` und `jp("...", "...")` werden aus der Formel erkannt und als Quellen (Snapshot/Subscribes) berücksichtigt.
-
-## Use-Cases / Beispiele
-
-Die vollständigen, ausführlichen Use-Cases (mit Schritt-für-Schritt-Konfiguration und Formeln) sind ins Wiki ausgelagert, damit sie leichter erweitert werden können.
-
-- Wiki: https://github.com/Felliglanz/data-solectrus/wiki
-
-Typische Anwendungsfälle:
-
-- PV-Leistung aus mehreren Quellen summieren (z.B. Enpal + Zendure + BKW)
-- Verbraucher/Verbrauchergruppen zusammenfassen
-- Hausverbrauch aus PV/Netz/Batterie herleiten
-- Batterie-Leistung (Laden/Entladen) aus zwei Messwerten berechnen
-- SoC aus mehreren Speichern (gewichtet nach Kapazität) zusammenführen
-- Werte klemmen/begrenzen (negativ → 0, Min/Max)
-
-## Diagnose-States
-
-Unter `data-solectrus.0.info.*` werden Status/Diagnosewerte gepflegt:
-
-- `info.status`: `starting`, `ok`, `no_items_enabled`
-- `info.itemsConfigured`: Anzahl konfigurierter Items
 - `info.itemsEnabled`: Anzahl aktivierter Items
+
 - `info.lastError`: letzter Fehlertext
-- `info.lastRun`: ISO-Timestamp des letzten Ticks
-- `info.evalTimeMs`: Laufzeit der Berechnung im letzten Tick
-- `info.timeBudgetMs`: Zeitbudget pro Tick (ms)
-- `info.skippedItems`: Anzahl Items, die im letzten Tick wegen Zeitbudget übersprungen wurden
-
-Zusätzlich gibt es per Item Diagnose-States unter `data-solectrus.0.items.<outputId>.*`:
-
-- `compiledOk`, `compileError`
-- `lastError`, `lastOkTs`, `lastEvalMs`, `consecutiveErrors`
-
-Robustheit: Bei Berechnungsfehlern wird der letzte gültige Wert für einige Retries weitergeschrieben und erst danach auf `0` gesetzt (Default: 3 Retries).
-
-## Sicherheit / Expression Engine
-
-Formeln werden über `jsep` geparst und in einem streng allowlist-basierten Evaluator ausgeführt.
-Nicht erlaubt sind z.B. Member-Zugriffe (`a.b`), `new`, `this`, Funktionskonstruktion etc.
-
-## Branding / Logo
-
-Dieses Projekt verwendet das offizielle SOLECTRUS Logo mit Freigabe durch Georg Ledermann.
-
-Hinweis: SOLECTRUS ist eine Marke der jeweiligen Inhaber.
-
-## Maintainer / Contributing
-
-Dieses Repository ist öffentlich, um die Weiterentwicklung gemeinsam mit einem Maintainer für dessen Adapter zu ermöglichen.
-PRs/Issues sind willkommen.
-

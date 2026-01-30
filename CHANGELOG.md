@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.7 - 2026-01-30
+
+### Added
+
+- New sync diagnostics under `info.*`: input timestamp gap telemetry (`info.inputTsGapMs`, `info.inputTsGapOk`, `info.inputTsGapThresholdMs`, `info.inputTsSources`, `info.inputTsMissing`).
+- New deterministic regression check script: `npm run check:simulate` (30s / 6 ticks) to validate PV + signed grid meter scenarios.
+
+### Changed
+
+- Admin UI: clearer wording + tooltip for “Ergebnis negativ → 0” (mode-aware hint: source vs formula).
+- Docs: README + Wiki updated to clarify output clamp vs per-input clamp.
+
+### Fixed
+
+- Formula evaluation: item-level `noNegative` no longer clamps negative *inputs* (important for signed meters where export is negative). Only per-input `noNegative` clamps that input; item-level `noNegative` clamps the final result.
+- Source mode: output datatype handling corrected (string/boolean/mixed items no longer force numeric parsing; primitives are mirrored correctly).
+- Sync diagnostics robustness: initial reads now populate the timestamp cache so `info.inputTsGap*` works immediately after startup.
+
 ## 0.2.6 - 2026-01-29
 
 ### Added

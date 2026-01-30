@@ -1,6 +1,6 @@
 {
   "name": "iobroker.data-solectrus",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "ioBroker adapter to compute/mirror PV & consumption values for SOLECTRUS dashboards",
   "main": "main.js",
   "keywords": [
@@ -20,7 +20,8 @@
   },
   "scripts": {
     "start": "node main.js",
-	"lint": "node scripts/lint-syntax.js",
-	"smoke": "node scripts/smoke-runtime.js"
+    "lint": "node scripts/lint-syntax.js",
+    "smoke": "node scripts/smoke-runtime.js",
+    "check:simulate": "node scripts/check-simulate-30s.js"
   }
 }

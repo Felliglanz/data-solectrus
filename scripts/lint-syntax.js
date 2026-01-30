@@ -20,13 +20,13 @@ function checkFile(filePath) {
 
 function main() {
 	const root = path.resolve(__dirname, '..');
+	const scriptsDir = path.join(root, 'scripts');
 	const files = [
 		path.join(root, 'main.js'),
 		path.join(root, 'lib', 'formula.js'),
 		path.join(root, 'lib', 'jsonpath.js'),
 		...listJsFiles(path.join(root, 'lib', 'services')),
-		path.join(root, 'scripts', 'lint-syntax.js'),
-		path.join(root, 'scripts', 'smoke-runtime.js'),
+		...listJsFiles(scriptsDir),
 	];
 
 	for (const f of files) {
