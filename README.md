@@ -1,6 +1,8 @@
 # ioBroker.Data-SOLECTRUS
 
 ![Version](https://img.shields.io/github/package-json/v/Felliglanz/data-solectrus?label=version)
+![NPM Version](https://img.shields.io/npm/v/iobroker.data-solectrus?label=npm)
+![NPM Downloads](https://img.shields.io/npm/dt/iobroker.data-solectrus)
 
 <img src="admin/data-solectrus.png" alt="SOLECTRUS" width="120" />
 
