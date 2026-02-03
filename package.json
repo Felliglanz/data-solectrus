@@ -2,7 +2,16 @@
   "name": "iobroker.data-solectrus",
   "version": "0.2.8",
   "description": "ioBroker adapter to compute/mirror PV & consumption values for SOLECTRUS dashboards",
+  "author": "Sven",
   "main": "main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Felliglanz/ioBroker.data-solectrus.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Felliglanz/ioBroker.data-solectrus/issues"
+  },
+  "homepage": "https://github.com/Felliglanz/ioBroker.data-solectrus",
   "keywords": [
     "iobroker",
     "adapter",

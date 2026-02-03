@@ -27,7 +27,22 @@
     "authors": [
       "Sven"
     ],
-    "license": "MIT"
+    "license": "MIT",
+    "readme": "https://github.com/Felliglanz/ioBroker.data-solectrus/blob/main/README.md",
+    "news": {
+      "0.2.8": {
+        "en": "Repository renamed to ioBroker.data-solectrus for naming convention compliance",
+        "de": "Repository zu ioBroker.data-solectrus umbenannt (Namenskonvention)"
+      },
+      "0.2.7": {
+        "en": "New sync diagnostics, formula evaluation fixes, source mode improvements",
+        "de": "Neue Sync-Diagnose, Formel-Evaluierungs-Fixes, Source-Modus-Verbesserungen"
+      },
+      "0.2.6": {
+        "en": "Admin UI improvements and bug fixes",
+        "de": "Admin UI Verbesserungen und Bugfixes"
+      }
+    }
   },
   "native": {
     "pollIntervalSeconds": 5,
