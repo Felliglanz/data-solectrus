@@ -71,18 +71,30 @@ Direktlinks (Auswahl):
 Unter `data-solectrus.0.info.*` werden Status/Diagnosewerte gepflegt:
 
 - `info.status`: `starting`, `ok`, `no_items_enabled`
-- `info.itemsConfigured`, `info.itemsEnabled`
-- `info.lastError`
-- `info.lastRun`, `info.evalTimeMs`
-- `info.timeBudgetMs`, `info.skippedItems`
+- `info.itemsActive`: Anzahl aktiver Items
+- `info.lastError`: Letzter Fehler
+- `info.lastRun`: Zeitstempel des letzten Ticks (ISO)
+- `info.lastRunMs`: Dauer des letzten Ticks (ms)
 
-Timing/Sync-Diagnose (hilft bei kurzzeitig „unplausiblen“ Kombinationen, wenn Quellen zeitversetzt updaten):
+Unter `info.diagnostics.*` liegen erweiterte Diagnose-Informationen:
 
-- `info.inputTsGapMs`: Differenz zwischen ältestem und neuestem Input-Timestamp (ms) der im Tick genutzten Quellen
-- `info.inputTsGapOk`: `true/false` basierend auf einem konservativen Threshold
-- `info.inputTsGapThresholdMs`: verwendeter Threshold (ms)
-- `info.inputTsSources`: Anzahl Inputs mit Timestamp
-- `info.inputTsMissing`: Anzahl Inputs ohne Timestamp
+- `info.diagnostics.itemsTotal`: Gesamtzahl konfigurierter Items
+- `info.diagnostics.evalBudgetMs`: Verfügbares Zeitbudget pro Tick (ms)
+- `info.diagnostics.evalSkipped`: Anzahl übersprungener Items (bei Budget-Überschreitung)
+
+Unter `info.diagnostics.timing.*` finden sich detaillierte Timing-Analysen (hilft bei kurzzeitig „unplausiblen" Kombinationen, wenn Quellen zeitversetzt updaten):
+
+- `info.diagnostics.timing.gapMs`: Zeitdifferenz zwischen ältestem und neuestem Source-Timestamp (alle Quellen)
+- `info.diagnostics.timing.gapOk`: `true/false` basierend auf Threshold
+- `info.diagnostics.timing.gapActiveMs`: Zeitdifferenz nur für aktive Quellen (< 30s alt)
+- `info.diagnostics.timing.gapActiveOk`: `true/false` für aktive Quellen
+- `info.diagnostics.timing.newestAgeMs`: Alter der neuesten Quelle (ms)
+- `info.diagnostics.timing.newestId`: State-ID der neuesten Quelle
+- `info.diagnostics.timing.oldestAgeMs`: Alter der ältesten Quelle (ms)
+- `info.diagnostics.timing.oldestId`: State-ID der ältesten Quelle
+- `info.diagnostics.timing.sources`: Anzahl Quellen mit Timestamp
+- `info.diagnostics.timing.sourcesActive`: Anzahl aktiver Quellen (< 30s alt)
+- `info.diagnostics.timing.sourcesSleeping`: Anzahl inaktiver Quellen (≥ 30s alt)
 
 Zusätzlich gibt es per Item Diagnose-States unter `data-solectrus.0.items.<outputId>.*`:
 
