@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.3.0 - 2026-02-03
+
+### BREAKING CHANGES
+
+- **Diagnostics state reorganization**: States moved to hierarchical structure for better organization
+  - `info.itemsConfigured` → `info.diagnostics.itemsTotal`
+  - `info.itemsEnabled` → `info.itemsActive`
+  - `info.evalTimeMs` → `info.lastRunMs`
+  - `info.timeBudgetMs` → `info.diagnostics.evalBudgetMs`
+  - `info.skippedItems` → `info.diagnostics.evalSkipped`
+  - Old flat timing states → `info.diagnostics.timing.*`
+- **Note**: Existing visualizations and scripts need to be updated to use new state paths
+
+### Added
+
+- New hierarchical state structure with `info.diagnostics.*` and `info.diagnostics.timing.*` channels
+- Enhanced timing diagnostics:
+  - Active vs sleeping source detection (30s threshold)
+  - `info.diagnostics.timing.sourcesActive` and `sourcesSleeping`
+  - Newest/oldest source tracking with IDs and age metrics
+  - `info.diagnostics.timing.newestAgeMs`, `newestId`, `oldestAgeMs`, `oldestId`
+  - Separate gap calculations for all sources vs active sources only
+  - `info.diagnostics.timing.gapActiveMs` and `gapActiveOk`
+
+### Changed
+
+- Improved state organization: all timing-related states now grouped under `info.diagnostics.timing.*`
+- Better state naming for clarity (e.g., `lastRunMs` instead of `evalTimeMs`)
+
 ## 0.2.9 - 2026-02-03
 
 ### Added
