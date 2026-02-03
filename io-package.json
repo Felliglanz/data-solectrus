@@ -4,7 +4,7 @@
     "version": "0.2.7",
     "title": "Data-SOLECTRUS",
     "icon": "data-solectrus.png",
-    "extIcon": "https://raw.githubusercontent.com/Felliglanz/data-solectrus/main/admin/data-solectrus.png",
+    "extIcon": "https://raw.githubusercontent.com/Felliglanz/ioBroker.data-solectrus/main/admin/data-solectrus.png",
     "titleLang": {
       "en": "Data-SOLECTRUS",
       "de": "Data-SOLECTRUS"

@@ -1,6 +1,6 @@
 # ioBroker.Data-SOLECTRUS
 
-![Version](https://img.shields.io/github/package-json/v/Felliglanz/data-solectrus?label=version)
+![Version](https://img.shields.io/github/package-json/v/Felliglanz/ioBroker.data-solectrus?label=version)
 ![NPM Version](https://img.shields.io/npm/v/iobroker.data-solectrus?label=npm)
 ![NPM Downloads](https://img.shields.io/npm/dt/iobroker.data-solectrus)
 
@@ -57,14 +57,14 @@ Wenn PV=4639W und Export=-2514W, ergibt sich Hausverbrauch ≈ 2125W.
 
 Die ausführlichen Beispiele und Erklärungen sind im Wiki:
 
-- https://github.com/Felliglanz/data-solectrus/wiki
+- https://github.com/Felliglanz/ioBroker.data-solectrus/wiki
 
 Direktlinks (Auswahl):
 
-- Hausverbrauch: https://github.com/Felliglanz/data-solectrus/wiki/Hausverbrauch
-- Werte begrenzen: https://github.com/Felliglanz/data-solectrus/wiki/Werte-begrenzen
-- Formel-Builder: https://github.com/Felliglanz/data-solectrus/wiki/Formel-Builder
-- Use-Cases Übersicht: https://github.com/Felliglanz/data-solectrus/wiki/Use-Cases
+- Hausverbrauch: https://github.com/Felliglanz/ioBroker.data-solectrus/wiki/Hausverbrauch
+- Werte begrenzen: https://github.com/Felliglanz/ioBroker.data-solectrus/wiki/Werte-begrenzen
+- Formel-Builder: https://github.com/Felliglanz/ioBroker.data-solectrus/wiki/Formel-Builder
+- Use-Cases Übersicht: https://github.com/Felliglanz/ioBroker.data-solectrus/wiki/Use-Cases
 
 ## Diagnose-States
 
