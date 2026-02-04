@@ -88,5 +88,10 @@
   "No items configured.": "Keine Werte konfiguriert.",
   "Select an item on the left or add a new one.": "Links einen Eintrag wählen oder einen neuen hinzufügen.",
   "Unnamed": "Unbenannt",
-  "Item": "Eintrag"
+  "Item": "Eintrag",
+  "Ungrouped": "Ohne Gruppe",
+  "active item": "aktiver Datenpunkt",
+  "active items": "aktive Datenpunkte",
+  "inactive item": "inaktiver Datenpunkt",
+  "inactive items": "inaktive Datenpunkte"
 }

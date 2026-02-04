@@ -88,5 +88,10 @@
   "No items configured.": "No items configured.",
   "Select an item on the left or add a new one.": "Select an item on the left or add a new one.",
   "Unnamed": "Unnamed",
-  "Item": "Item"
+  "Item": "Item",
+  "Ungrouped": "Ungrouped",
+  "active item": "active item",
+  "active items": "active items",
+  "inactive item": "inactive item",
+  "inactive items": "inactive items"
 }

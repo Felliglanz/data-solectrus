@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.1 - 2026-02-04
+
+### Added
+
+- **Folder grouping in master-detail editor**: Items are now automatically grouped by their `group` field in the master list (left panel)
+  - Folders can be collapsed/expanded for better organization
+  - Visual status indicators: Green badge shows active items count, gray badge shows inactive items count
+  - Hover tooltips on badges display "X active item(s)" and "X inactive item(s)"
+  - Items without a group are shown under "Ungrouped"
+  - UI-only feature - no changes to object tree structure
+
+### Changed
+
+- Target ID placeholder simplified from `pv.pvGesamt` to `pvGesamt` (since group is defined separately)
+
 ## 0.3.0 - 2026-02-03
 
 ### BREAKING CHANGES
