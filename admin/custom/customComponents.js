@@ -9,7 +9,7 @@
     'use strict';
 
     const REMOTE_NAME = 'DataSolectrusItems';
-    const UI_VERSION = '2026-01-25 20260125-4';
+    const UI_VERSION = '2026-02-04 20260204-1';
     const DEBUG = false;
     let shareScope;
 
@@ -958,6 +958,7 @@
             const [selectedIndex, setSelectedIndex] = React.useState(0);
             const [selectContext, setSelectContext] = React.useState(null);
             const [openDropdown, setOpenDropdown] = React.useState(null);
+            const [collapsedFolders, setCollapsedFolders] = React.useState({});
 
 			const [formulaBuilderOpen, setFormulaBuilderOpen] = React.useState(false);
 			const [formulaDraft, setFormulaDraft] = React.useState('');
@@ -1107,6 +1108,27 @@
             };
 
             const selectedItem = items[selectedIndex] || null;
+
+            // Group items by their group/folder field
+            const groupedItems = React.useMemo(() => {
+                const groups = {};
+                items.forEach((item, index) => {
+                    const groupName = (item.group || '').trim() || t('Ungrouped');
+                    if (!groups[groupName]) {
+                        groups[groupName] = [];
+                    }
+                    groups[groupName].push({ item, index });
+                });
+                return groups;
+            }, [items, t]);
+
+            const toggleFolder = folderName => {
+                setCollapsedFolders(prev => ({
+                    ...prev,
+                    [folderName]: !prev[folderName],
+                }));
+            };
+
             const formulaInputSignature = (() => {
                 if (!formulaBuilderOpen || !selectedItem) return '';
                 const inputs = Array.isArray(selectedItem.inputs) ? selectedItem.inputs : [];
@@ -1488,6 +1510,45 @@
                 alignItems: 'center',
                 overflow: 'hidden',
                 color: colors.text,
+            });
+
+            const folderBtnStyle = {
+                width: '100%',
+                textAlign: 'left',
+                padding: '10px 10px',
+                border: 'none',
+                borderBottom: `1px solid ${colors.rowBorder}`,
+                background: colors.panelBg,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                fontSize: 14,
+                fontWeight: 600,
+                display: 'flex',
+                gap: 8,
+                alignItems: 'center',
+                overflow: 'hidden',
+                color: colors.text,
+            };
+
+            const folderItemStyle = {
+                width: '100%',
+                textAlign: 'left',
+                padding: '10px 10px 10px 30px',
+                border: 'none',
+                borderBottom: `1px solid ${colors.rowBorder}`,
+                background: 'transparent',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                fontSize: 14,
+                display: 'flex',
+                gap: 8,
+                alignItems: 'center',
+                overflow: 'hidden',
+                color: colors.text,
+            };
+
+            const folderItemActiveStyle = Object.assign({}, folderItemStyle, {
+                background: colors.active,
             });
 
             const labelStyle = { display: 'block', fontSize: 12, color: colors.textMuted, marginTop: 10 };
@@ -2142,33 +2203,130 @@
                         'div',
                         { style: listStyle },
                         items.length
-                            ? items.map((it, i) =>
-                                  React.createElement(
-                                      'button',
-                                      {
-                                          key: i,
-                                          type: 'button',
-                                          style: listBtnStyle(i === selectedIndex),
-                                          onClick: () => setSelectedIndex(i),
-                                      },
-                                      React.createElement('span', { style: { width: 22 } }, it.enabled ? '🟢' : '⚪'),
+                            ? Object.keys(groupedItems).sort().map(folderName => {
+                                  const folderItems = groupedItems[folderName];
+                                  const isCollapsed = collapsedFolders[folderName];
+                                  const activeCount = folderItems.filter(({ item }) => item.enabled).length;
+                                  const inactiveCount = folderItems.length - activeCount;
+
+                                  return React.createElement(
+                                      React.Fragment,
+                                      { key: folderName },
                                       React.createElement(
-                                          'span',
+                                          'button',
                                           {
-                                              style: {
-                                                  fontWeight: 600,
-                                                  flex: 1,
-                                                  minWidth: 0,
-                                                  overflow: 'hidden',
-                                                  textOverflow: 'ellipsis',
-                                                  whiteSpace: 'nowrap',
-                                              },
-                                              title: it.name || it.targetId || t('Unnamed'),
+                                              type: 'button',
+                                              style: folderBtnStyle,
+                                              onClick: () => toggleFolder(folderName),
                                           },
-                                          it.name || it.targetId || t('Unnamed')
-                                      )
-                                  )
-                              )
+                                          React.createElement(
+                                              'span',
+                                              { style: { width: 20, fontSize: 14 } },
+                                              isCollapsed ? '▶' : '▼'
+                                          ),
+                                          React.createElement(
+                                              'span',
+                                              {
+                                                  style: {
+                                                      flex: 1,
+                                                      minWidth: 0,
+                                                      overflow: 'hidden',
+                                                      textOverflow: 'ellipsis',
+                                                      whiteSpace: 'nowrap',
+                                                  },
+                                              },
+                                              folderName
+                                          ),
+                                          React.createElement(
+                                              'span',
+                                              {
+                                                  style: {
+                                                      display: 'flex',
+                                                      gap: 6,
+                                                      alignItems: 'center',
+                                                      fontSize: 12,
+                                                  },
+                                              },
+                                              activeCount > 0
+                                                  ? React.createElement(
+                                                        'span',
+                                                        {
+                                                            style: {
+                                                                background: '#10b981',
+                                                                color: 'white',
+                                                                borderRadius: '50%',
+                                                                width: 24,
+                                                                height: 24,
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                fontWeight: 'bold',
+                                                                fontSize: 11,
+                                                            },
+                                                        },
+                                                        activeCount
+                                                    )
+                                                  : null,
+                                              inactiveCount > 0
+                                                  ? React.createElement(
+                                                        'span',
+                                                        {
+                                                            style: {
+                                                                background: isDark ? '#4b5563' : '#d1d5db',
+                                                                color: isDark ? '#d1d5db' : '#4b5563',
+                                                                borderRadius: '50%',
+                                                                width: 24,
+                                                                height: 24,
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                fontWeight: 'bold',
+                                                                fontSize: 11,
+                                                            },
+                                                        },
+                                                        inactiveCount
+                                                    )
+                                                  : null
+                                          )
+                                      ),
+                                      !isCollapsed
+                                          ? folderItems.map(({ item, index }) =>
+                                                React.createElement(
+                                                    'button',
+                                                    {
+                                                        key: index,
+                                                        type: 'button',
+                                                        style:
+                                                            index === selectedIndex
+                                                                ? folderItemActiveStyle
+                                                                : folderItemStyle,
+                                                        onClick: () => setSelectedIndex(index),
+                                                    },
+                                                    React.createElement(
+                                                        'span',
+                                                        { style: { width: 22 } },
+                                                        item.enabled ? '🟢' : '⚪'
+                                                    ),
+                                                    React.createElement(
+                                                        'span',
+                                                        {
+                                                            style: {
+                                                                fontWeight: 600,
+                                                                flex: 1,
+                                                                minWidth: 0,
+                                                                overflow: 'hidden',
+                                                                textOverflow: 'ellipsis',
+                                                                whiteSpace: 'nowrap',
+                                                            },
+                                                            title: item.name || item.targetId || t('Unnamed'),
+                                                        },
+                                                        item.name || item.targetId || t('Unnamed')
+                                                    )
+                                                )
+                                            )
+                                          : null
+                                  );
+                              })
                             : React.createElement(
                                   'div',
                                   { style: { padding: 12, opacity: 0.9, color: colors.textMuted } },
