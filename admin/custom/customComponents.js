@@ -2415,7 +2415,7 @@
                                   type: 'text',
                                   value: selectedItem.targetId || '',
                                   onChange: e => updateSelected('targetId', e.target.value),
-                                  placeholder: 'pv.pvGesamt',
+                                  placeholder: 'pvGesamt',
                               }),
                               React.createElement('label', { style: labelStyle }, t('Mode')),
                               React.createElement(
