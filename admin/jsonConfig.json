@@ -9,6 +9,7 @@
         "hint": {
           "type": "staticText",
           "text": "Configure values via the Master/Detail editor.",
+          "newLine": true,
           "sm": 12
         },
         "items": {
