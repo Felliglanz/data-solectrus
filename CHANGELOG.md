@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.3.2 - 2026-02-07
+
+### Added
+
+- **Enhanced Formula Builder** with comprehensive user assistance:
+  - **Tooltips**: All operators (+, -, *, /, %, &&, ||, ==, etc.) and functions (IF, min, max, clamp) now have descriptive tooltips with examples
+  - **Examples Section**: 6 ready-to-use formula patterns (PV sum, surplus, percentage calculation, positive-only values, conditional logic, clamp 0-1)
+  - **Live Syntax Highlighting**: Color-coded formula editor
+    - Variables (inputs) in green
+    - Functions/keywords in blue
+    - Numbers in orange
+    - Strings in light green
+    - Operators in cyan
+  - **Smart Autocomplete**: Intelligent suggestions while typing
+    - Shows available input variables
+    - Shows available functions
+    - Keyboard navigation (↑↓, Enter/Tab, Esc)
+    - Mouse support
+  - All features support both German and English translations
+
+### Fixed
+
+- Missing translation for Master/Detail editor hint text ("Configure values via the Master/Detail editor" now translates correctly)
+
+### Changed
+
+- Significantly improved README with better structure and installation instructions
+- Installation via GitHub Custom URL now prominently featured as recommended method
+- Formula Builder documentation added to README
+
 ## 0.3.1 - 2026-02-04
 
 ### Added

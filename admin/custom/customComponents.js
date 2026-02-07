@@ -969,6 +969,9 @@
             const [formulaLiveLoading, setFormulaLiveLoading] = React.useState(false);
             const [formulaPreview, setFormulaPreview] = React.useState(null);
             const [formulaPreviewLoading, setFormulaPreviewLoading] = React.useState(false);
+            const [autocompleteSuggestions, setAutocompleteSuggestions] = React.useState([]);
+            const [autocompleteIndex, setAutocompleteIndex] = React.useState(0);
+            const [syntaxHighlightEnabled, setSyntaxHighlightEnabled] = React.useState(true);
 
             React.useEffect(() => {
                 const onDocMouseDown = e => {
@@ -1363,6 +1366,117 @@
                 } catch {
                     // ignore
                 }
+            };
+
+            // Tokenize formula for syntax highlighting
+            const tokenizeFormula = text => {
+                const tokens = [];
+                const keywords = ['IF', 'min', 'max', 'clamp', 's', 'v', 'jp'];
+                const operators = ['+', '-', '*', '/', '%', '(', ')', '&&', '||', '!', '==', '!=', '>=', '<=', '>', '<', '?', ':'];
+                
+                let i = 0;
+                while (i < text.length) {
+                    const char = text[i];
+                    
+                    // Skip whitespace
+                    if (/\s/.test(char)) {
+                        tokens.push({ type: 'whitespace', value: char });
+                        i++;
+                        continue;
+                    }
+                    
+                    // Numbers
+                    if (/\d/.test(char)) {
+                        let num = char;
+                        i++;
+                        while (i < text.length && /[\d.]/.test(text[i])) {
+                            num += text[i];
+                            i++;
+                        }
+                        tokens.push({ type: 'number', value: num });
+                        continue;
+                    }
+                    
+                    // Strings
+                    if (char === '"' || char === "'") {
+                        const quote = char;
+                        let str = char;
+                        i++;
+                        while (i < text.length && text[i] !== quote) {
+                            str += text[i];
+                            i++;
+                        }
+                        if (i < text.length) str += text[i++];
+                        tokens.push({ type: 'string', value: str });
+                        continue;
+                    }
+                    
+                    // Two-char operators
+                    const twoChar = text.slice(i, i + 2);
+                    if (operators.includes(twoChar)) {
+                        tokens.push({ type: 'operator', value: twoChar });
+                        i += 2;
+                        continue;
+                    }
+                    
+                    // Single-char operators
+                    if (operators.includes(char)) {
+                        tokens.push({ type: 'operator', value: char });
+                        i++;
+                        continue;
+                    }
+                    
+                    // Identifiers/Keywords
+                    if (/[a-zA-Z_$]/.test(char)) {
+                        let identifier = char;
+                        i++;
+                        while (i < text.length && /[a-zA-Z0-9_$]/.test(text[i])) {
+                            identifier += text[i];
+                            i++;
+                        }
+                        const type = keywords.includes(identifier) ? 'keyword' : 'variable';
+                        tokens.push({ type, value: identifier });
+                        continue;
+                    }
+                    
+                    // Unknown
+                    tokens.push({ type: 'unknown', value: char });
+                    i++;
+                }
+                
+                return tokens;
+            };
+
+            // Get autocomplete suggestions
+            const getAutocompleteSuggestions = (text, cursorPos, inputVars) => {
+                if (!text || cursorPos < 0) return [];
+                
+                // Get word at cursor
+                let wordStart = cursorPos;
+                while (wordStart > 0 && /[a-zA-Z0-9_$]/.test(text[wordStart - 1])) {
+                    wordStart--;
+                }
+                const wordPrefix = text.slice(wordStart, cursorPos).toLowerCase();
+                
+                if (!wordPrefix) return [];
+                
+                const suggestions = [];
+                
+                // Input variables
+                inputVars.forEach(v => {
+                    if (v.key.toLowerCase().startsWith(wordPrefix)) {
+                        suggestions.push({ type: 'variable', value: v.key, desc: t('Variables (Inputs)') });
+                    }
+                });
+                
+                // Functions
+                ['IF', 'min', 'max', 'clamp', 's', 'v', 'jp'].forEach(fn => {
+                    if (fn.toLowerCase().startsWith(wordPrefix)) {
+                        suggestions.push({ type: 'function', value: fn, desc: t('Functions') });
+                    }
+                });
+                
+                return suggestions;
             };
 
             const updateSelected = (field, value) => {
@@ -1950,18 +2064,20 @@
                                 React.createElement(
                                     'div',
                                     { style: { display: 'flex', flexWrap: 'wrap', gap: 8 } },
-                                    ['+', '-', '*', '/', '%', '(', ')', '&&', '||', '!', '==', '!=', '>=', '<=', '>', '<', '?', ':'].map(op =>
-                                        React.createElement(
+                                    ['+', '-', '*', '/', '%', '(', ')', '&&', '||', '!', '==', '!=', '>=', '<=', '>', '<', '?', ':'].map(op => {
+                                        const tooltipKey = op === '(' || op === ')' ? 'op.()' : (op === '?' || op === ':' ? 'op.?:' : `op.${op}`);
+                                        return React.createElement(
                                             'button',
                                             {
                                                 key: op,
                                                 type: 'button',
                                                 style: chipBtnStyle,
                                                 onClick: () => insertIntoFormulaDraft({ text: op }),
+                                                title: t(tooltipKey),
                                             },
                                             op
-                                        )
-                                    )
+                                        );
+                                    })
                                 ),
 
                                 React.createElement('div', { style: sectionTitleStyle }, t('Functions')),
@@ -1975,6 +2091,7 @@
                                             style: chipBtnStyle,
                                             onClick: () =>
                                                 insertIntoFormulaDraft({ text: 'min(a, b)', selectStartWithinText: 4, selectEndWithinText: 5 }),
+                                            title: t('fn.min'),
                                         },
                                         t('min')
                                     ),
@@ -1985,6 +2102,7 @@
                                             style: chipBtnStyle,
                                             onClick: () =>
                                                 insertIntoFormulaDraft({ text: 'max(a, b)', selectStartWithinText: 4, selectEndWithinText: 5 }),
+                                            title: t('fn.max'),
                                         },
                                         t('max')
                                     ),
@@ -1999,6 +2117,7 @@
                                                     selectStartWithinText: 6,
                                                     selectEndWithinText: 11,
                                                 }),
+                                            title: t('fn.clamp'),
                                         },
                                         t('clamp')
                                     ),
@@ -2013,6 +2132,7 @@
                                                     selectStartWithinText: 3,
                                                     selectEndWithinText: 12,
                                                 }),
+                                            title: t('fn.IF'),
                                         },
                                         t('IF')
                                     )
@@ -2054,6 +2174,60 @@
                                             title: t('Pick a state id and insert jp("id", "$.value")'),
                                         },
                                         t('Insert jp()')
+                                    )
+                                ),
+
+                                React.createElement('div', { style: sectionTitleStyle }, t('Examples')),
+                                React.createElement(
+                                    'div',
+                                    { style: { fontSize: 11, color: colors.textMuted, marginBottom: 6 } },
+                                    t('Common formula patterns')
+                                ),
+                                React.createElement(
+                                    'div',
+                                    { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+                                    [
+                                        { key: 'sum', label: 'ex.sum', formula: 'ex.sum.formula' },
+                                        { key: 'surplus', label: 'ex.surplus', formula: 'ex.surplus.formula' },
+                                        { key: 'percent', label: 'ex.percent', formula: 'ex.percent.formula' },
+                                        { key: 'positive', label: 'ex.positive', formula: 'ex.positive.formula' },
+                                        { key: 'condition', label: 'ex.condition', formula: 'ex.condition.formula' },
+                                        { key: 'clamp01', label: 'ex.clamp01', formula: 'ex.clamp01.formula' },
+                                    ].map(ex =>
+                                        React.createElement(
+                                            'button',
+                                            {
+                                                key: ex.key,
+                                                type: 'button',
+                                                style: Object.assign({}, chipBtnStyle, {
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    alignItems: 'flex-start',
+                                                    padding: '8px 10px',
+                                                    borderRadius: 8,
+                                                    textAlign: 'left',
+                                                }),
+                                                onClick: () => insertIntoFormulaDraft({ text: t(ex.formula) }),
+                                                title: t(ex.formula),
+                                            },
+                                            React.createElement(
+                                                'div',
+                                                { style: { fontSize: 12, fontWeight: 500, marginBottom: 2 } },
+                                                t(ex.label)
+                                            ),
+                                            React.createElement(
+                                                'div',
+                                                {
+                                                    style: {
+                                                        fontSize: 11,
+                                                        fontFamily:
+                                                            "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+                                                        color: colors.textMuted,
+                                                    },
+                                                },
+                                                t(ex.formula)
+                                            )
+                                        )
                                     )
                                 )
                             ),
@@ -2110,21 +2284,215 @@
                                               : React.createElement('span', { style: valuePillStyle }, t('n/a'))
                                     )
                                 ),
-                                React.createElement('textarea', {
-                                    ref: formulaEditorRef,
-                                    style: Object.assign({}, inputStyle, {
-                                        minHeight: 260,
-                                        flex: 1,
-                                        resize: 'none',
-                                        fontFamily:
-                                            "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-                                        lineHeight: 1.45,
+                                // Formula editor container with syntax highlighting and autocomplete
+                                React.createElement(
+                                    'div',
+                                    { style: { position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 260 } },
+                                    // Syntax highlighting overlay (behind textarea)
+                                    syntaxHighlightEnabled && React.createElement(
+                                        'div',
+                                        {
+                                            style: Object.assign({}, inputStyle, {
+                                                position: 'absolute',
+                                                top: 0,
+                                                left: 0,
+                                                right: 0,
+                                                bottom: 0,
+                                                pointerEvents: 'none',
+                                                whiteSpace: 'pre-wrap',
+                                                wordWrap: 'break-word',
+                                                color: 'transparent',
+                                                overflow: 'auto',
+                                                fontFamily:
+                                                    "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+                                                lineHeight: 1.45,
+                                                minHeight: 260,
+                                            }),
+                                        },
+                                        tokenizeFormula(formulaDraft).map((token, i) => {
+                                            let tokenColor = colors.text;
+                                            if (token.type === 'keyword') tokenColor = isDark ? '#c792ea' : '#9334e9';
+                                            if (token.type === 'function') tokenColor = isDark ? '#82aaff' : '#2563eb';
+                                            if (token.type === 'variable') tokenColor = isDark ? '#82e0aa' : '#16a34a';
+                                            if (token.type === 'number') tokenColor = isDark ? '#f78c6c' : '#ea580c';
+                                            if (token.type === 'string') tokenColor = isDark ? '#c3e88d' : '#65a30d';
+                                            if (token.type === 'operator') tokenColor = isDark ? '#89ddff' : '#0891b2';
+                                            
+                                            return React.createElement(
+                                                'span',
+                                                { key: i, style: { color: tokenColor } },
+                                                token.value
+                                            );
+                                        })
+                                    ),
+                                    // Actual textarea (on top, with transparent text when highlighting is on)
+                                    React.createElement('textarea', {
+                                        ref: formulaEditorRef,
+                                        style: Object.assign({}, inputStyle, {
+                                            flex: 1,
+                                            minHeight: 260,
+                                            resize: 'none',
+                                            fontFamily:
+                                                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+                                            lineHeight: 1.45,
+                                            background: syntaxHighlightEnabled ? 'transparent' : inputStyle.background,
+                                            color: syntaxHighlightEnabled ? 'transparent' : colors.text,
+                                            caretColor: colors.text,
+                                            position: syntaxHighlightEnabled ? 'relative' : 'static',
+                                            zIndex: syntaxHighlightEnabled ? 1 : 'auto',
+                                        }),
+                                        value: formulaDraft,
+                                        onChange: e => {
+                                            setFormulaDraft(e.target.value);
+                                            // Trigger autocomplete
+                                            const el = formulaEditorRef.current;
+                                            if (el) {
+                                                const pos = el.selectionStart;
+                                                const suggestions = getAutocompleteSuggestions(
+                                                    e.target.value,
+                                                    pos,
+                                                    vars
+                                                );
+                                                setAutocompleteSuggestions(suggestions);
+                                                setAutocompleteIndex(0);
+                                            }
+                                        },
+                                        onKeyDown: e => {
+                                            // Handle autocomplete navigation
+                                            if (autocompleteSuggestions.length > 0) {
+                                                if (e.key === 'ArrowDown') {
+                                                    e.preventDefault();
+                                                    setAutocompleteIndex(prev => 
+                                                        (prev + 1) % autocompleteSuggestions.length
+                                                    );
+                                                    return;
+                                                }
+                                                if (e.key === 'ArrowUp') {
+                                                    e.preventDefault();
+                                                    setAutocompleteIndex(prev => 
+                                                        prev === 0 ? autocompleteSuggestions.length - 1 : prev - 1
+                                                    );
+                                                    return;
+                                                }
+                                                if (e.key === 'Enter' || e.key === 'Tab') {
+                                                    e.preventDefault();
+                                                    const selected = autocompleteSuggestions[autocompleteIndex];
+                                                    if (selected) {
+                                                        const el = formulaEditorRef.current;
+                                                        const pos = el.selectionStart;
+                                                        const text = formulaDraft;
+                                                        
+                                                        // Find word start
+                                                        let wordStart = pos;
+                                                        while (wordStart > 0 && /[a-zA-Z0-9_$]/.test(text[wordStart - 1])) {
+                                                            wordStart--;
+                                                        }
+                                                        
+                                                        const before = text.slice(0, wordStart);
+                                                        const after = text.slice(pos);
+                                                        const newText = before + selected.value + after;
+                                                        
+                                                        setFormulaDraft(newText);
+                                                        setAutocompleteSuggestions([]);
+                                                        
+                                                        // Move cursor after inserted text
+                                                        globalThis.requestAnimationFrame(() => {
+                                                            const newPos = wordStart + selected.value.length;
+                                                            el.setSelectionRange(newPos, newPos);
+                                                            el.focus();
+                                                        });
+                                                    }
+                                                    return;
+                                                }
+                                                if (e.key === 'Escape') {
+                                                    setAutocompleteSuggestions([]);
+                                                    return;
+                                                }
+                                            }
+                                        },
+                                        placeholder: t('e.g. pv1 + pv2 + pv3'),
+                                        spellCheck: false,
                                     }),
-                                    value: formulaDraft,
-                                    onChange: e => setFormulaDraft(e.target.value),
-                                    placeholder: t('e.g. pv1 + pv2 + pv3'),
-                                    spellCheck: false,
-                                }),
+                                    // Autocomplete dropdown
+                                    autocompleteSuggestions.length > 0 && React.createElement(
+                                        'div',
+                                        {
+                                            style: {
+                                                position: 'absolute',
+                                                top: '100%',
+                                                left: 0,
+                                                marginTop: 4,
+                                                minWidth: 200,
+                                                maxWidth: 400,
+                                                borderRadius: 8,
+                                                border: `1px solid ${colors.border}`,
+                                                background: colors.panelBg,
+                                                boxShadow: isDark ? '0 8px 24px rgba(0,0,0,0.45)' : '0 8px 24px rgba(0,0,0,0.15)',
+                                                zIndex: 2000,
+                                                maxHeight: 180,
+                                                overflowY: 'auto',
+                                                padding: 4,
+                                            },
+                                        },
+                                        autocompleteSuggestions.map((suggestion, idx) =>
+                                            React.createElement(
+                                                'div',
+                                                {
+                                                    key: idx,
+                                                    style: {
+                                                        padding: '6px 10px',
+                                                        borderRadius: 6,
+                                                        cursor: 'pointer',
+                                                        background: idx === autocompleteIndex ? colors.active : 'transparent',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 8,
+                                                    },
+                                                    onClick: () => {
+                                                        const el = formulaEditorRef.current;
+                                                        const pos = el.selectionStart;
+                                                        const text = formulaDraft;
+                                                        
+                                                        let wordStart = pos;
+                                                        while (wordStart > 0 && /[a-zA-Z0-9_$]/.test(text[wordStart - 1])) {
+                                                            wordStart--;
+                                                        }
+                                                        
+                                                        const before = text.slice(0, wordStart);
+                                                        const after = text.slice(pos);
+                                                        const newText = before + suggestion.value + after;
+                                                        
+                                                        setFormulaDraft(newText);
+                                                        setAutocompleteSuggestions([]);
+                                                        
+                                                        globalThis.requestAnimationFrame(() => {
+                                                            const newPos = wordStart + suggestion.value.length;
+                                                            el.setSelectionRange(newPos, newPos);
+                                                            el.focus();
+                                                        });
+                                                    },
+                                                },
+                                                React.createElement(
+                                                    'span',
+                                                    {
+                                                        style: {
+                                                            fontSize: 13,
+                                                            fontFamily:
+                                                                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+                                                            color: suggestion.type === 'variable' ? (isDark ? '#82e0aa' : '#16a34a') : (isDark ? '#82aaff' : '#2563eb'),
+                                                        },
+                                                    },
+                                                    suggestion.value
+                                                ),
+                                                suggestion.desc && React.createElement(
+                                                    'span',
+                                                    { style: { fontSize: 11, color: colors.textMuted } },
+                                                    suggestion.desc
+                                                )
+                                            )
+                                        )
+                                    )
+                                ),
                                 React.createElement(
                                     'div',
                                     { style: { display: 'flex', justifyContent: 'space-between', gap: 8 } },

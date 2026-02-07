@@ -6,186 +6,257 @@
 
 <img src="admin/data-solectrus.png" alt="SOLECTRUS" width="120" />
 
-Ein kleiner ioBroker-Adapter, der eigene States unter `data-solectrus.0.*` anlegt und im festen Intervall (Standard: 5s, **wall-clock aligned**) mit berechneten oder gespiegelten Werten befüllt.
+Ein flexibler ioBroker-Adapter, der eigene States unter `data-solectrus.0.*` anlegt und im festen Intervall (Standard: 5s, **wall-clock aligned**) mit berechneten oder gespiegelten Werten befüllt.
 
-Kurz gesagt: 🧮 **Formeln** + 🔌 **beliebige ioBroker-States** → 📦 **saubere, adapter-eigene Ziel-States** (z.B. für SOLECTRUS-Dashboards).
+**Kurz gesagt:** 🧮 **Formeln** + 🔌 **beliebige ioBroker-States** → 📦 **saubere, adapter-eigene Ziel-States** (z.B. für SOLECTRUS-Dashboards).
 
-## Highlights
+## 🚀 Installation
 
-- ✅ `source`-Items: 1:1 spiegeln (optional mit JSONPath)
-- ✅ `formula`-Items: Werte aus vielen Quellen zusammenrechnen
-- ✅ Optionale Snapshot-Reads pro Tick (reduziert Timing-Effekte)
-- ✅ Clamps/Regeln am Ergebnis (z.B. Ergebnis negativ → 0, Min/Max)
-- ✅ Diagnose-States für Laufzeit/Fehler/Sync
+### ⭐ Empfohlene Methode: GitHub Custom URL
 
-## Installation
+Der einfachste Weg, den Adapter zu installieren:
 
-Der Adapter kann lokal als `.tgz` gebaut und in ioBroker installiert werden (oder via GitHub-Release, falls vorhanden).
+1. Öffne **ioBroker Admin** → **Adapter**
+2. Klicke auf das **GitHub-Symbol** (Octocat) oben rechts → **Custom**
+3. Füge die URL ein:
+   ```
+   https://github.com/Felliglanz/ioBroker.data-solectrus
+   ```
+4. Klicke auf **Install**
 
-- Paket bauen: `npm pack`
-- Installation in ioBroker: Admin → Adapter → „Benutzerdefiniert“ / URL/Datei → `iobroker.data-solectrus-<version>.tgz` (z.B. `iobroker.data-solectrus-0.2.7.tgz`)
+Der Adapter wird direkt vom GitHub-Repository installiert und kann später über die gleiche Methode aktualisiert werden.
 
-Hinweis: Adaptername in ioBroker ist `data-solectrus` (Instanz: `data-solectrus.0`).
+### Alternative: NPM
 
-## Quickstart (Konfig)
+Falls der Adapter im ioBroker-Repository verfügbar ist:
+```bash
+cd /opt/iobroker
+npm install iobroker.data-solectrus
+```
 
-Der Adapter ist absichtlich „leer“ – du legst nur die Items an, die du brauchst.
+### Alternative: Manuell via .tgz
 
-1) **Items anlegen** (Admin → Adapter → data-solectrus → Werte)
-- `mode=source`: genau einen State spiegeln
-- `mode=formula`: mehrere Inputs + eine Formel- Items werden im Editor automatisch nach ihrem **Ordner/Gruppe**-Feld gruppiert
-- Ordner zeigen auf einen Blick aktive (🟢) und inaktive (⚪) Datenpunkte
-- Ordner können auf-/zugeklappt werden für bessere Übersicht
-2) Optional: **Snapshot aktivieren** (Global settings)
-- Wenn deine Quellen zeitversetzt updaten und du „kurz unplausible“ Kombinationen siehst, aktiviere Snapshot.
+Falls du lokal entwickelst:
+```bash
+npm pack
+```
+Dann in ioBroker Admin: **Adapter** → **Custom** → Datei hochladen (`iobroker.data-solectrus-<version>.tgz`)
 
-## Wichtige Semantik (signed Meter / Clamps)
+**Hinweis:** Adaptername in ioBroker ist `data-solectrus` (Instanz: `data-solectrus.0`)
+
+## ✨ Highlights
+
+- ✅ **Source Items**: 1:1 spiegeln (optional mit JSONPath)
+- ✅ **Formula Items**: Werte aus vielen Quellen zusammenrechnen
+- ✅ **Komfortabler Formula Builder** 🆕 
+  - Tooltips bei allen Operatoren und Funktionen
+  - 6 Beispiel-Snippets zum direkten Einfügen
+  - Live Syntax Highlighting mit Farbcodierung
+  - Smart Autocomplete für Variablen und Funktionen
+- ✅ **Ordner-Gruppierung** im Editor für bessere Übersicht
+- ✅ **Snapshot-Reads** pro Tick (reduziert Timing-Effekte)
+- ✅ **Clamps/Regeln** am Ergebnis (z.B. Ergebnis negativ → 0, Min/Max)
+- ✅ **Diagnose-States** für Laufzeit/Fehler/Sync
+
+## 🎯 Quickstart
+
+Der Adapter ist absichtlich „leer" – du legst nur die Items an, die du brauchst.
+
+### 1. Items anlegen
+
+Gehe zu **Admin** → **Adapter** → **data-solectrus** → **Werte**
+
+**Modi:**
+- `mode=source`: Spiegelt genau einen ioBroker-State
+- `mode=formula`: Berechnet Werte aus mehreren Inputs
+
+**Features:**
+- Items werden automatisch nach **Ordner/Gruppe** gruppiert
+- Grüne/graue Badges zeigen aktive/inaktive Items
+- Ordner können auf-/zugeklappt werden
+
+### 2. Formula Builder nutzen 🆕
+
+Beim Anlegen eines Formula-Items klicke auf **Builder…**:
+
+- **Tooltips**: Hover über Operatoren (+, -, *, etc.) und Funktionen (min, max, IF) für Erklärungen mit Beispielen
+- **Beispiele**: 6 vorgefertigte Snippets (PV-Summe, Überschuss, Prozentsatz, etc.) zum direkten Einfügen
+- **Syntax Highlighting**: Variablen grün, Funktionen blau, Zahlen orange
+- **Autocomplete**: Tippe los und erhalte Vorschläge für deine Variablen und Funktionen
+  - Navigation: ↑↓ durch Vorschläge, Enter/Tab zum Übernehmen, Esc zum Schließen
+
+### 3. Optional: Snapshot aktivieren
+
+Unter **Global settings**:
+- Wenn deine Quellen zeitversetzt updaten, aktiviere **Snapshot**
+- Der Adapter liest dann alle Inputs einmalig pro Tick für konsistente Werte
+
+## 📚 Wichtige Semantik
 
 ### Ergebnis negativ → 0
 
-Die Option **„Ergebnis negativ → 0“** wirkt nur auf das **Ergebnis** des Items (Output).
+Die Option **„Ergebnis negativ → 0"** wirkt nur auf das **Ergebnis** des Items (Output).
 
-- Wenn du nur einzelne Inputs bereinigen willst (z.B. PV darf nie negativ sein, aber Netzleistung ist signed), nutze dafür pro Input **„neg→0“** oder `max(0, …)` in der Formel.
+- Wenn du nur einzelne Inputs bereinigen willst (z.B. PV darf nie negativ sein, aber Netzleistung ist signed), nutze dafür:
+  - **"Input negativ auf 0"** direkt am Input, oder
+  - `max(0, ...)` in der Formel
 
 ### Beispiel: Hausverbrauch aus PV + signed Netzleistung
 
-- `gridSigned`: Import positiv, Export negativ
-- Hausverbrauch: `pvTotal + gridSigned`
+```javascript
+// Inputs:
+// - pvTotal: 4639 W
+// - gridSigned: -2514 W (negativ = Export)
 
-Wenn PV=4639W und Export=-2514W, ergibt sich Hausverbrauch ≈ 2125W.
+// Formel:
+pvTotal + gridSigned
 
-## Wiki / Use-Cases
+// Ergebnis: 2125 W (Hausverbrauch)
+```
 
-Die ausführlichen Beispiele und Erklärungen sind im Wiki:
+## 📖 Wiki & Dokumentation
 
-- https://github.com/Felliglanz/ioBroker.data-solectrus/wiki
+Ausführliche Beispiele und Erklärungen im Wiki:
+
+**🔗 [GitHub Wiki](https://github.com/Felliglanz/ioBroker.data-solectrus/wiki)**
 
 Direktlinks (Auswahl):
+- [Hausverbrauch berechnen](https://github.com/Felliglanz/ioBroker.data-solectrus/wiki/Hausverbrauch)
+- [Werte begrenzen](https://github.com/Felliglanz/ioBroker.data-solectrus/wiki/Werte-begrenzen)
+- [Formel-Builder Guide](https://github.com/Felliglanz/ioBroker.data-solectrus/wiki/Formel-Builder)
+- [Use-Cases Übersicht](https://github.com/Felliglanz/ioBroker.data-solectrus/wiki/Use-Cases)
 
-- Hausverbrauch: https://github.com/Felliglanz/ioBroker.data-solectrus/wiki/Hausverbrauch
-- Werte begrenzen: https://github.com/Felliglanz/ioBroker.data-solectrus/wiki/Werte-begrenzen
-- Formel-Builder: https://github.com/Felliglanz/ioBroker.data-solectrus/wiki/Formel-Builder
-- Use-Cases Übersicht: https://github.com/Felliglanz/ioBroker.data-solectrus/wiki/Use-Cases
+## 📊 Diagnose-States
 
-## Diagnose-States
+Unter `data-solectrus.0.info.*`:
 
-Unter `data-solectrus.0.info.*` werden Status/Diagnosewerte gepflegt:
-
+**Allgemein:**
 - `info.status`: `starting`, `ok`, `no_items_enabled`
 - `info.itemsActive`: Anzahl aktiver Items
 - `info.lastError`: Letzter Fehler
-- `info.lastRun`: Zeitstempel des letzten Ticks (ISO)
+- `info.lastRun`: Zeitstempel (ISO)
 - `info.lastRunMs`: Dauer des letzten Ticks (ms)
 
-Unter `info.diagnostics.*` liegen erweiterte Diagnose-Informationen:
+**Erweiterte Diagnose** unter `info.diagnostics.*`:
+- `itemsTotal`: Gesamtzahl Items
+- `evalBudgetMs`: Zeitbudget pro Tick
+- `evalSkipped`: Übersprungene Items (bei Budget-Überschreitung)
 
-- `info.diagnostics.itemsTotal`: Gesamtzahl konfigurierter Items
-- `info.diagnostics.evalBudgetMs`: Verfügbares Zeitbudget pro Tick (ms)
-- `info.diagnostics.evalSkipped`: Anzahl übersprungener Items (bei Budget-Überschreitung)
+**Timing-Analysen** unter `info.diagnostics.timing.*`:
+- `gapMs`: Zeitdifferenz zwischen ältestem/neuestem Source
+- `gapOk`: true/false basierend auf Threshold
+- `sourcesActive`, `sourcesSleeping`: Anzahl aktiver/inaktiver Quellen (< 30s / ≥ 30s)
+- `newestAgeMs`, `newestId`, `oldestAgeMs`, `oldestId`: Details zu Quellen
 
-Unter `info.diagnostics.timing.*` finden sich detaillierte Timing-Analysen (hilft bei kurzzeitig „unplausiblen" Kombinationen, wenn Quellen zeitversetzt updaten):
-
-- `info.diagnostics.timing.gapMs`: Zeitdifferenz zwischen ältestem und neuestem Source-Timestamp (alle Quellen)
-- `info.diagnostics.timing.gapOk`: `true/false` basierend auf Threshold
-- `info.diagnostics.timing.gapActiveMs`: Zeitdifferenz nur für aktive Quellen (< 30s alt)
-- `info.diagnostics.timing.gapActiveOk`: `true/false` für aktive Quellen
-- `info.diagnostics.timing.newestAgeMs`: Alter der neuesten Quelle (ms)
-- `info.diagnostics.timing.newestId`: State-ID der neuesten Quelle
-- `info.diagnostics.timing.oldestAgeMs`: Alter der ältesten Quelle (ms)
-- `info.diagnostics.timing.oldestId`: State-ID der ältesten Quelle
-- `info.diagnostics.timing.sources`: Anzahl Quellen mit Timestamp
-- `info.diagnostics.timing.sourcesActive`: Anzahl aktiver Quellen (< 30s alt)
-- `info.diagnostics.timing.sourcesSleeping`: Anzahl inaktiver Quellen (≥ 30s alt)
-
-Zusätzlich gibt es per Item Diagnose-States unter `data-solectrus.0.items.<outputId>.*`:
-
+**Pro Item** unter `data-solectrus.0.items.<outputId>.*`:
 - `compiledOk`, `compileError`, `lastError`, `lastOkTs`, `lastEvalMs`, `consecutiveErrors`
 
-## Development / Checks
-
-Für schnelle Checks (z.B. nach Refactorings) gibt es einen Runtime-Smoke-Test, der **ohne** ioBroker-Controller läuft.
-Er mockt die minimal benötigte Adapter-API und führt einmalig diese Phasen aus:
-
-- `createInfoStates()`
-- `prepareItems()` (inkl. Formel-Compile, Source-Discovery, Subscriptions)
-- `runTick()` (ein Tick mit Snapshot + Berechnung + Output-States)
-
-Ausführen:
-
-- `npm run smoke`
-
-## Konfiguration (Admin)
-
-Die Konfiguration ist absichtlich **leer** – du fügst nur die Werte hinzu, die du brauchst.
+## ⚙️ Konfiguration (Admin)
 
 ### Globale Einstellungen
 
-- **Poll interval (seconds)**: Intervall in Sekunden (min 1). Der Tick läuft synchron zur Uhr, d.h. bei 5s z.B. auf `...:00, ...:05, ...:10, ...`.
+- **Poll interval (seconds)**: Intervall in Sekunden (min 1). Läuft synchron zur Uhr (z.B. bei 5s: `...:00, ...:05, ...:10`)
 
-Optional (gegen Timing-/Cache-Effekte bei vielen Quellen):
-
-- **Read inputs on tick (snapshot)**: Wenn aktiv, liest der Adapter zu jedem Tick alle benötigten Input-States einmal aktiv via ioBroker und rechnet dann mit diesem „Snapshot“. Das kann kleine Abweichungen reduzieren, wenn mehrere Quellen minimal versetzt updaten.
-- **Snapshot delay (ms)**: Optionaler Delay vor dem Snapshot (z.B. 100–300ms), falls deine Sensoren typischerweise kurz nach dem Tick-Rand updaten.
-
-Optional (Robustheit bei Fehlern):
-
-- **errorRetriesBeforeZero** (noch nicht im Admin-UI): Wie viele fehlgeschlagene Berechnungen pro Item toleriert werden, bevor der Output auf `0` gesetzt wird. Standard: `3`.
+**Optional (gegen Timing-Effekte):**
+- **Read inputs on tick (snapshot)**: Liest alle Input-States einmalig pro Tick für konsistente Werte
+- **Snapshot delay (ms)**: Optionaler Delay vor dem Snapshot (z.B. 100-300ms)
 
 ### Werte (Items)
 
 Jeder Eintrag erzeugt genau **einen Output-State**.
 
-Felder:
-
-- **Enabled**: aktiviert/deaktiviert.
-- **Name**: Anzeigename (optional).
-- **Folder/Group**: optionaler Ordner/Channel-Prefix.
-	- Beispiel: `pv` + Target ID `leistung` → Output wird `data-solectrus.0.pv.leistung`.
-- **Target ID**: Ziel-State innerhalb des Adapters (relativ). Beispiel: `leistung`, `pv.gesamt`.
-	- Erlaubt sind nur Segmente mit `A-Z`, `a-z`, `0-9`, `_`, `-` und `.` (keine absoluten IDs, kein `..`).
+**Felder:**
+- **Enabled**: aktiviert/deaktiviert
+- **Name**: Anzeigename (optional)
+- **Folder/Group**: optionaler Ordner/Channel-Prefix (z.B. `pv`)
+- **Target ID**: Ziel-State relativ zum Adapter (z.B. `leistung`, `gesamt`)
+  - → Output wird `data-solectrus.0.<group>.<targetId>`
+  - Erlaubt: `A-Z`, `a-z`, `0-9`, `_`, `-`, `.`
 - **Mode**:
-	- `source`: 1:1 Spiegelung eines ioBroker-States (mit optionaler Nachbearbeitung).
-	- `formula`: Berechnung aus mehreren Inputs.
-- **ioBroker Source State**:
-	- bei `mode=source`: der Quell-State (vollqualifiziert, z.B. `some.adapter.0.channel.state`).
-	- bei `mode=formula`: pro Input ein Source-State.
-- **JSONPath (optional)**:
-	- Wenn der Source-State (oder ein Input) statt einer Zahl ein JSON als Text enthält, kann hier ein JSONPath angegeben werden, um daraus einen numerischen Wert zu extrahieren.
-	- Beispiele: `$.apower`, `$.aenergy.by_minute[2]`
-- **Inputs** (nur `mode=formula`): Liste aus (Key, Source State).
-	- Optional pro Input: **Input negativ auf 0** (klemmt nur diesen Input vor der Rechnung).
-	- Optional pro Input: **JSONPath**
-		- Wenn JSONPath auf einen String/Boolean zeigt, wird dieser Wert als Variable bereitgestellt (z.B. für `IF(opMode == 'Heating', ...)`).
-		- Wenn JSONPath auf eine Zahl zeigt (oder einen numerischen String wie `"12.2"`), wird der Wert als Zahl bereitgestellt.
-	- **Wichtig zu Keys**: In Formeln sind `-` und Leerzeichen Operatoren/Trenner.
-		- Verwende daher am besten nur `a-z`, `0-9`, `_` (z.B. `bkw_garage`, `enpal`, `zendure`).
-		- Intern werden ungültige Zeichen im Key zu `_` umgewandelt.
-- **Formula expression**: Formel-String.
-- **Datatype**: optional (Standard: number).
-- **Role**, **Unit**: optional (für Metadaten).
+  - `source`: 1:1 Spiegelung
+  - `formula`: Berechnung aus mehreren Inputs
+- **ioBroker Source State**: Quell-State vollqualifiziert (z.B. `some.adapter.0.channel.state`)
+- **JSONPath (optional)**: Extrahiert Werte aus JSON-Strings (z.B. `$.apower`, `$.aenergy.by_minute[2]`)
+- **Inputs** (nur bei `formula`): Liste aus (Key, Source State)
+  - Optional pro Input: **Input negativ auf 0**, **JSONPath**
+  - **Wichtig bei Keys**: Verwende nur `a-z`, `0-9`, `_` (z.B. `pv1`, `battery_power`)
+- **Formula expression**: Formel-String (z.B. `pv1 + pv2 + pv3`)
+- **Datatype**, **Role**, **Unit**: optional für Metadaten
 
-Nachbearbeitung:
+**Nachbearbeitung:**
+- **Clamp negative to 0**: Negative Ergebnisse → 0
+- **Clamp result**: Min/Max Begrenzung
 
-- **Clamp negative to 0**: negative Werte werden auf `0` gesetzt.
-	- wirkt auf das **Ergebnis** des Items (Output).
-	- wenn du nur einzelne Quellen/Inputs „bereinigen“ willst (z.B. PV darf nie negativ sein, aber Netzleistung ist signed), nutze dafür **Input negativ auf 0** direkt am jeweiligen Input oder `max(0, …)` in der Formel.
-- **Clamp result**: Ergebnis begrenzen (Min/Max). Leere Felder bedeuten „nicht begrenzen“.
-
-## Formeln
+## 📝 Formeln
 
 ### Variablen
 
-Die Variablen kommen aus den **Inputs** (Key → Source State). In der Formel verwendest du dann den Key.
+Die Variablen kommen aus den **Inputs** (Key → Source State).
 
-Beispiel:
+**Beispiel:**
+```javascript
+// Inputs:
+// - pv1: some.adapter.0.pv1
+// - pv2: some.adapter.0.pv2
+// - pv3: some.adapter.0.pv3
 
-- Inputs: `pv1`, `pv2`, `pv3`
+// Formel:
+pv1 + pv2 + pv3
+```
 
-Zusätzlich:
+### Operatoren & Funktionen
 
-- `npm run lint` (Syntax-Check)
-- `npm run check:simulate` (kurzer 30s/6-Ticks Regression-Check für PV+signed Meter)
-- Formel: `pv1 + pv2 + pv3`
-- `info.itemsActive`: Anzahl aktivierter Items
+- **Arithmetisch**: `+`, `-`, `*`, `/`, `%`
+- **Vergleich**: `==`, `!=`, `>`, `<`, `>=`, `<=`
+- **Logisch**: `&&`, `||`, `!`
+- **Ternär**: `bedingung ? wertWennWahr : wertWennFalsch`
+- **Funktionen**: `min(a, b)`, `max(a, b)`, `clamp(wert, min, max)`, `IF(bedingung, wennWahr, wennFalsch)`
 
-- `info.lastError`: letzter Fehlertext
+**State-Funktionen** (für Zugriff auf andere ioBroker-States):
+- `s("id")`: Liest `.val` eines States (Zahl)
+- `v("id")`: Liest `.val` eines States (beliebiger Typ)
+- `jp("id", "$.path")`: JSONPath auf `.val` eines States
+
+### JSONPath Support
+
+Wenn ein Source-State JSON als Text enthält:
+
+```javascript
+// State enthält: {"apower": 1234, "status": "ok"}
+// JSONPath: $.apower
+// → Ergebnis: 1234
+
+// State enthält: {"values": [10, 20, 30]}
+// JSONPath: $.values[1]
+// → Ergebnis: 20
+```
+
+**Bei Strings/Booleans:**
+```javascript
+// Input mit JSONPath → String/Boolean wird als Variable bereitgestellt
+// Nutzbar in Formeln: IF(status == "ok", 100, 0)
+```
+
+## 🛠️ Development
+
+### Checks
+
+- `npm run lint`: Syntax-Check
+- `npm run smoke`: Runtime-Smoke-Test (läuft ohne ioBroker-Controller)
+- `npm run check:simulate`: 30s/6-Ticks Regression-Check
+
+### Smoke-Test
+
+Führt einmalig aus:
+- `createInfoStates()`
+- `prepareItems()` (Formel-Compile, Source-Discovery, Subscriptions)
+- `runTick()` (ein Tick mit Snapshot + Berechnung + Output-States)
+
+## 📄 License
+
+MIT © Sven
+
+## 🙏 Credits
+
+- Formel-Parser: [jsep](https://github.com/EricSmekens/jsep)
+- JSONPath: Eigene Implementierung

@@ -1,7 +1,7 @@
 {
   "common": {
     "name": "data-solectrus",
-    "version": "0.3.1",
+    "version": "0.3.2",
     "title": "Data-SOLECTRUS",
     "icon": "data-solectrus.png",
     "extIcon": "https://raw.githubusercontent.com/Felliglanz/ioBroker.data-solectrus/main/admin/data-solectrus.png",
