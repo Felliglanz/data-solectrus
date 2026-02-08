@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.4.0 - (develop)
+
+### Added
+
+- **NEW: State Machine Mode** - Rule-based state generation alongside Formula and Source modes:
+  - Define rules with conditions and output values (string or boolean)
+  - Rules evaluated top-to-bottom; first matching rule wins
+  - Full formula support in rule conditions (use all inputs and state functions: s(), v(), jp())
+  - Dedicated UI with drag-and-drop friendly rule editor
+  - Supports string outputs (e.g., "Battery-Empty", "Battery-Low", "Battery-Full")
+  - Supports boolean outputs (true/false based on conditions)
+  - Integration with existing input system (reuse inputs across rules)
+  - Default/fallback rules (condition "true" or empty)
+  - Comprehensive tooltips and examples
+  - Full German + English translations
+  
+### Technical
+
+- New module `lib/stateMachine.js` for rule compilation and evaluation
+- Extended `evaluator.js`, `itemManager.js`, `sourceDiscovery.js` for state-machine mode
+- UI enhancements in `admin/custom/customComponents.js`
+- Mode switcher now supports three modes: Formula, Source, State Machine
+
 ## 0.3.2 - 2026-02-07
 
 ### Added

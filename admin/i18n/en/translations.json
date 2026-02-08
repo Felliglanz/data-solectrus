@@ -17,6 +17,7 @@
   "Mode": "Mode",
   "Formula": "Formula",
   "Source": "Source",
+  "State Machine": "State Machine",
   "ioBroker Source State": "ioBroker Source State",
   "Select": "Select",
   "Inputs": "Inputs",
@@ -128,5 +129,13 @@
   "ex.condition": "Condition (If-Then)",
   "ex.condition.formula": "IF(battery > 80, surplus, 0)",
   "ex.clamp01": "Clamp value to 0-1",
-  "ex.clamp01.formula": "clamp(value / 100, 0, 1)"
+  "ex.clamp01.formula": "clamp(value / 100, 0, 1)",
+  "Rules": "Rules",
+  "Add rule": "Add rule",
+  "Rule": "Rule",
+  "Condition": "Condition",
+  "Output Value": "Output Value",
+  "Rules are evaluated top-to-bottom; first matching rule wins.": "Rules are evaluated top-to-bottom; first matching rule wins.",
+  "e.g. soc < 10 or true for default": "e.g. soc < 10 or true for default",
+  "e.g. Battery-Empty": "e.g. Battery-Empty"
 }

@@ -17,6 +17,7 @@
   "Mode": "Modus",
   "Formula": "Formel",
   "Source": "Quelle",
+  "State Machine": "Zustandsautomat",
   "ioBroker Source State": "ioBroker Quell-State",
   "Select": "Auswählen",
   "Inputs": "Eingänge",
@@ -128,5 +129,13 @@
   "ex.condition": "Bedingung (Wenn-Dann)",
   "ex.condition.formula": "IF(batterie > 80, überschuss, 0)",
   "ex.clamp01": "Wert auf 0-1 begrenzen",
-  "ex.clamp01.formula": "clamp(wert / 100, 0, 1)"
+  "ex.clamp01.formula": "clamp(wert / 100, 0, 1)",
+  "Rules": "Regeln",
+  "Add rule": "Regel hinzufügen",
+  "Rule": "Regel",
+  "Condition": "Bedingung",
+  "Output Value": "Ausgabewert",
+  "Rules are evaluated top-to-bottom; first matching rule wins.": "Regeln werden von oben nach unten geprüft; die erste passende Regel gewinnt.",
+  "e.g. soc < 10 or true for default": "z.B. soc < 10 oder true für Standard",
+  "e.g. Battery-Empty": "z.B. Akku-Leer"
 }

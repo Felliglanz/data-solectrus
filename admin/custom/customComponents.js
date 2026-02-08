@@ -99,6 +99,7 @@
             jsonPath: '',
             inputs: [],
             formula: '',
+            rules: [],
             type: '',
             role: '',
             unit: '',
@@ -2808,7 +2809,9 @@
                                       React.createElement(
                                           'span',
                                           null,
-                                          (selectedItem.mode || 'formula') === 'source' ? t('Source') : t('Formula')
+                                          (selectedItem.mode || 'formula') === 'source' 
+                                              ? t('Source') 
+                                              : (selectedItem.mode === 'state-machine' ? t('State Machine') : t('Formula'))
                                       ),
                                       React.createElement('span', { style: { opacity: 0.75 } }, '▾')
                                   ),
@@ -2837,6 +2840,17 @@
                                                     },
                                                 },
                                                 t('Source')
+                                            ),
+                                            React.createElement(
+                                                'div',
+                                                {
+                                                    style: dropdownItemStyle(selectedItem.mode === 'state-machine'),
+                                                    onClick: () => {
+                                                        updateSelected('mode', 'state-machine');
+                                                        setOpenDropdown(null);
+                                                    },
+                                                },
+                                                t('State Machine')
                                             )
                                         )
                                       : null
@@ -2867,7 +2881,213 @@
 										placeholder: t('e.g. $.apower'),
 									})
                                     )
-                                  : React.createElement(
+                                  : selectedItem.mode === 'state-machine'
+                                      ? React.createElement(
+                                            React.Fragment,
+                                            null,
+                                            React.createElement(
+                                                'div',
+                                                { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 } },
+                                                React.createElement('div', { style: labelStyle }, t('Inputs')),
+                                                React.createElement(
+                                                    'button',
+                                                    { type: 'button', style: btnStyle, onClick: addInput },
+                                                    t('Add input')
+                                                )
+                                            ),
+                                            (Array.isArray(selectedItem.inputs) ? selectedItem.inputs : []).map((inp, idx) =>
+                                                React.createElement(
+                                                    'div',
+                                                    {
+                                                        key: idx,
+                                                        style: {
+                                                            display: 'grid',
+                                                            gridTemplateColumns: '140px 1fr 160px 90px 90px',
+                                                            gap: 8,
+                                                            alignItems: 'center',
+                                                            marginTop: 8,
+                                                        },
+                                                    },
+                                                    React.createElement('input', {
+                                                        style: inputStyle,
+                                                        type: 'text',
+                                                        value: (inp && inp.key) || '',
+                                                        placeholder: t('Key'),
+                                                        onChange: e => updateInput(idx, 'key', e.target.value),
+                                                    }),
+                                                    React.createElement('input', {
+                                                        style: inputStyle,
+                                                        type: 'text',
+                                                        value: (inp && inp.sourceState) || '',
+                                                        placeholder: t('ioBroker Source State'),
+                                                        onChange: e => updateInput(idx, 'sourceState', e.target.value),
+                                                    }),
+                                                    React.createElement('input', {
+                                                        style: inputStyle,
+                                                        type: 'text',
+                                                        value: (inp && inp.jsonPath) || '',
+                                                        placeholder: t('JSONPath (optional)'),
+                                                        onChange: e => updateInput(idx, 'jsonPath', e.target.value),
+                                                        title: t('e.g. $.apower'),
+                                                    }),
+                                                    React.createElement(
+                                                        'div',
+                                                        { style: { display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'stretch' } },
+                                                        React.createElement(
+                                                            'label',
+                                                            {
+                                                                style: {
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    gap: 6,
+                                                                    fontSize: 11,
+                                                                    color: colors.textMuted,
+                                                                    cursor: 'pointer',
+                                                                },
+                                                                title: t('Clamp input negative to 0'),
+                                                            },
+                                                            React.createElement('input', {
+                                                                type: 'checkbox',
+                                                                checked: !!(inp && inp.noNegative),
+                                                                onChange: e => updateInput(idx, 'noNegative', !!e.target.checked),
+                                                            }),
+                                                            React.createElement('span', null, 'neg→0')
+                                                        ),
+                                                        renderSelectButton(() => setSelectContext({ kind: 'input', index: idx }))
+                                                    ),
+                                                    React.createElement(
+                                                        'button',
+                                                        { type: 'button', style: btnDangerStyle, onClick: () => deleteInput(idx) },
+                                                        t('Delete')
+                                                    )
+                                                )
+                                            ),
+                                            React.createElement(
+                                                'div',
+                                                {
+                                                    style: {
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'space-between',
+                                                        marginTop: 20,
+                                                        paddingTop: 10,
+                                                        borderTop: `1px solid ${colors.divider}`,
+                                                    },
+                                                },
+                                                React.createElement('div', { style: labelStyle }, t('Rules')),
+                                                React.createElement(
+                                                    'button',
+                                                    {
+                                                        type: 'button',
+                                                        style: btnStyle,
+                                                        onClick: () => {
+                                                            const rules = Array.isArray(selectedItem.rules) ? selectedItem.rules : [];
+                                                            const itemType = selectedItem.type || 'string';
+                                                            const defaultValue = itemType === 'boolean' ? false : '';
+                                                            rules.push({ condition: '', value: defaultValue });
+                                                            updateSelected('rules', rules);
+                                                        },
+                                                    },
+                                                    t('Add rule')
+                                                )
+                                            ),
+                                            React.createElement(
+                                                'div',
+                                                { style: { fontSize: 11, color: colors.textMuted, marginTop: 4 } },
+                                                t('Rules are evaluated top-to-bottom; first matching rule wins.')
+                                            ),
+                                            (Array.isArray(selectedItem.rules) ? selectedItem.rules : []).map((rule, ruleIdx) =>
+                                                React.createElement(
+                                                    'div',
+                                                    {
+                                                        key: ruleIdx,
+                                                        style: {
+                                                            border: `1px solid ${colors.divider}`,
+                                                            borderRadius: 4,
+                                                            padding: 12,
+                                                            marginTop: 8,
+                                                            backgroundColor: colors.cardBg,
+                                                        },
+                                                    },
+                                                    React.createElement(
+                                                        'div',
+                                                        { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } },
+                                                        React.createElement('span', { style: { fontWeight: 600, fontSize: 11, color: colors.textMuted } }, `${t('Rule')} ${ruleIdx + 1}`),
+                                                        React.createElement(
+                                                            'button',
+                                                            {
+                                                                type: 'button',
+                                                                style: Object.assign({}, btnDangerStyle, { padding: '4px 8px', fontSize: 11 }),
+                                                                onClick: () => {
+                                                                    const rules = Array.isArray(selectedItem.rules) ? selectedItem.rules : [];
+                                                                    rules.splice(ruleIdx, 1);
+                                                                    updateSelected('rules', rules);
+                                                                },
+                                                            },
+                                                            t('Delete')
+                                                        )
+                                                    ),
+                                                    React.createElement('label', { style: Object.assign({}, labelStyle, { marginTop: 0 }) }, t('Condition')),
+                                                    React.createElement('input', {
+                                                        style: Object.assign({}, inputStyle, { fontFamily: 'monospace' }),
+                                                        type: 'text',
+                                                        value: (rule && rule.condition) || '',
+                                                        onChange: e => {
+                                                            const rules = Array.isArray(selectedItem.rules) ? [...selectedItem.rules] : [];
+                                                            rules[ruleIdx] = Object.assign({}, rules[ruleIdx], { condition: e.target.value });
+                                                            updateSelected('rules', rules);
+                                                        },
+                                                        placeholder: t('e.g. soc < 10 or true for default'),
+                                                    }),
+                                                    React.createElement('label', { style: labelStyle }, t('Output Value')),
+                                                    selectedItem.type === 'boolean'
+                                                        ? React.createElement(
+                                                              'div',
+                                                              { style: { display: 'flex', gap: 8 } },
+                                                              React.createElement(
+                                                                  'label',
+                                                                  { style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
+                                                                  React.createElement('input', {
+                                                                      type: 'radio',
+                                                                      checked: rule && rule.value === true,
+                                                                      onChange: () => {
+                                                                          const rules = Array.isArray(selectedItem.rules) ? [...selectedItem.rules] : [];
+                                                                          rules[ruleIdx] = Object.assign({}, rules[ruleIdx], { value: true });
+                                                                          updateSelected('rules', rules);
+                                                                      },
+                                                                  }),
+                                                                  React.createElement('span', null, 'true')
+                                                              ),
+                                                              React.createElement(
+                                                                  'label',
+                                                                  { style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
+                                                                  React.createElement('input', {
+                                                                      type: 'radio',
+                                                                      checked: rule && rule.value === false,
+                                                                      onChange: () => {
+                                                                          const rules = Array.isArray(selectedItem.rules) ? [...selectedItem.rules] : [];
+                                                                          rules[ruleIdx] = Object.assign({}, rules[ruleIdx], { value: false });
+                                                                          updateSelected('rules', rules);
+                                                                      },
+                                                                  }),
+                                                                  React.createElement('span', null, 'false')
+                                                              )
+                                                          )
+                                                        : React.createElement('input', {
+                                                              style: inputStyle,
+                                                              type: 'text',
+                                                              value: (rule && rule.value !== undefined && rule.value !== null) ? String(rule.value) : '',
+                                                              onChange: e => {
+                                                                  const rules = Array.isArray(selectedItem.rules) ? [...selectedItem.rules] : [];
+                                                                  rules[ruleIdx] = Object.assign({}, rules[ruleIdx], { value: e.target.value });
+                                                                  updateSelected('rules', rules);
+                                                              },
+                                                              placeholder: t('e.g. Battery-Empty'),
+                                                          })
+                                                )
+                                            )
+                                        )
+                                      : React.createElement(
                                         React.Fragment,
                                         null,
                                         React.createElement(
