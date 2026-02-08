@@ -48,6 +48,9 @@ Dann in ioBroker Admin: **Adapter** → **Custom** → Datei hochladen (`iobroke
 
 - ✅ **Source Items**: 1:1 spiegeln (optional mit JSONPath)
 - ✅ **Formula Items**: Werte aus vielen Quellen zusammenrechnen
+- ✅ **State Machine Items** 🆕: Regelbasierte Zustandserzeugung
+  - String/Boolean Outputs basierend auf Bedingungen
+  - Perfekt für Status-Übersetzungen und komplexe Logik
 - ✅ **Komfortabler Formula Builder** 🆕 
   - Tooltips bei allen Operatoren und Funktionen
   - 6 Beispiel-Snippets zum direkten Einfügen
@@ -69,13 +72,43 @@ Gehe zu **Admin** → **Adapter** → **data-solectrus** → **Werte**
 **Modi:**
 - `mode=source`: Spiegelt genau einen ioBroker-State
 - `mode=formula`: Berechnet Werte aus mehreren Inputs
+- `mode=state-machine` 🆕: Regelbasierte String/Boolean-Ausgabe
 
 **Features:**
 - Items werden automatisch nach **Ordner/Gruppe** gruppiert
 - Grüne/graue Badges zeigen aktive/inaktive Items
 - Ordner können auf-/zugeklappt werden
 
-### 2. Formula Builder nutzen 🆕
+### 2. State Machine für Status-Logik 🆕
+
+Für **regelbasierte Zustände** (z.B. Status-Übersetzungen):
+
+1. Wähle `mode=state-machine`
+2. Definiere Inputs (z.B. `soc` für Batterie-SOC oder `status` für System-Status)
+3. Füge Regeln hinzu (von oben nach unten geprüft, erste passende Regel gewinnt):
+
+**Beispiel: Batterie-Status**
+```
+Regel 1: soc < 10   → "Akku-Leer"
+Regel 2: soc < 30   → "Akku-Niedrig"
+Regel 3: soc >= 80  → "Akku-Voll"
+Regel 4: true       → "Akku-Normal" (Fallback)
+```
+
+**Beispiel: Externe System-States übersetzen**
+```
+Input: status → other.system.0.statusCode
+Regel 1: status == "Fernabschaltung" → "System remote shutdown!"
+Regel 2: status == "Wartung"         → "Maintenance mode"
+Regel 3: status == "Normal"          → "All systems operational"
+```
+
+**Quick-Insert Beispiele** verfügbar für:
+- 🔋 Battery Levels
+- ⚡ Surplus Categories
+- 🕐 Time of Day
+
+### 3. Formula Builder nutzen
 
 Beim Anlegen eines Formula-Items klicke auf **Builder…**:
 
@@ -85,7 +118,7 @@ Beim Anlegen eines Formula-Items klicke auf **Builder…**:
 - **Autocomplete**: Tippe los und erhalte Vorschläge für deine Variablen und Funktionen
   - Navigation: ↑↓ durch Vorschläge, Enter/Tab zum Übernehmen, Esc zum Schließen
 
-### 3. Optional: Snapshot aktivieren
+### 4. Optional: Snapshot aktivieren
 
 Unter **Global settings**:
 - Wenn deine Quellen zeitversetzt updaten, aktiviere **Snapshot**

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 - (develop)
+## 0.3.3 - 2026-02-08
 
 ### Added
 
@@ -8,13 +8,20 @@
   - Define rules with conditions and output values (string or boolean)
   - Rules evaluated top-to-bottom; first matching rule wins
   - Full formula support in rule conditions (use all inputs and state functions: s(), v(), jp())
-  - Dedicated UI with drag-and-drop friendly rule editor
+  - Quick-insert examples: Battery Levels, Surplus Categories, Time of Day
   - Supports string outputs (e.g., "Battery-Empty", "Battery-Low", "Battery-Full")
   - Supports boolean outputs (true/false based on conditions)
   - Integration with existing input system (reuse inputs across rules)
   - Default/fallback rules (condition "true" or empty)
-  - Comprehensive tooltips and examples
+  - Comprehensive tooltips and inline help
   - Full German + English translations
+  
+  **Use Cases:**
+  - Translate system status codes to human-readable messages
+  - Create battery level indicators from SOC values
+  - Generate time-of-day states from hour values
+  - Convert external system states (e.g., "Fernabschaltung" → "System remote shutdown!")
+  - Combine multiple conditions for complex state logic
   
 ### Technical
 
@@ -22,6 +29,7 @@
 - Extended `evaluator.js`, `itemManager.js`, `sourceDiscovery.js` for state-machine mode
 - UI enhancements in `admin/custom/customComponents.js`
 - Mode switcher now supports three modes: Formula, Source, State Machine
+- Clamp/noNegative options hidden in State Machine mode (not applicable for string/boolean outputs)
 
 ## 0.3.2 - 2026-02-07
 
